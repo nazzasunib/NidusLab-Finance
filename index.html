@@ -1,0 +1,1770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NidusLab Finance & Accounting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --purple:#7C3AED; --purple-dark:#5B21B6; --purple-deep:#4C1D95; --purple-light:#EDE9FE;
+    --black:#0A0A0A; --gray:#1A1A1A; --light:#F6F6F8; --white:#FFFFFF;
+    --amber:#D97706; --amber-bg:#FEF3E2; --green:#059669; --green-bg:#E7F7F1; --red:#DC2626; --red-bg:#FDEDED;
+    --border:#E7E7EC; --border-soft:#F0F0F3; --text-muted:#8A8A98; --text-body:#2B2B33;
+    --shadow-sm:0 1px 2px rgba(16,16,20,.04);
+    --shadow-md:0 4px 14px rgba(16,16,20,.06);
+    --shadow-lg:0 12px 32px rgba(16,16,20,.10);
+    --radius:12px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:var(--light);color:var(--text-body);-webkit-font-smoothing:antialiased;}
+  a{color:inherit;}
+
+  /* ---------------- Animated background icons ---------------- */
+  .bg-fx{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;
+    background:radial-gradient(circle at 12% 15%, rgba(124,58,237,.09), transparent 42%),
+               radial-gradient(circle at 88% 82%, rgba(124,58,237,.07), transparent 42%),
+               radial-gradient(circle at 90% 10%, rgba(16,16,20,.03), transparent 40%),
+               var(--light);}
+  .bg-icon{position:absolute;font-weight:800;color:var(--purple);opacity:.07;font-style:normal;line-height:1;filter:none;}
+  .bg-icon.i1{top:8%;left:6%;font-size:120px;animation:driftA 26s ease-in-out infinite;}
+  .bg-icon.i2{top:65%;left:10%;font-size:90px;color:var(--black);opacity:.045;animation:driftB 32s ease-in-out infinite;}
+  .bg-icon.i3{top:20%;left:82%;font-size:80px;opacity:.09;animation:driftC 24s ease-in-out infinite;}
+  .bg-icon.i4{top:75%;left:80%;font-size:76px;opacity:.08;animation:driftA 30s ease-in-out infinite reverse;}
+  .bg-icon.i5{top:42%;left:48%;font-size:150px;opacity:.045;animation:driftB 40s ease-in-out infinite;}
+  .bg-icon.i6{top:5%;left:45%;font-size:70px;color:var(--black);opacity:.05;animation:driftC 22s ease-in-out infinite reverse;}
+  .bg-icon.i7{top:85%;left:35%;font-size:70px;opacity:.08;animation:driftA 28s ease-in-out infinite;}
+  .bg-icon.i8{top:35%;left:20%;font-size:60px;opacity:.06;animation:driftB 20s ease-in-out infinite reverse;}
+  @keyframes driftA{0%{transform:translate(0,0) rotate(0deg);} 50%{transform:translate(18px,-24px) rotate(12deg);} 100%{transform:translate(0,0) rotate(0deg);}}
+  @keyframes driftB{0%{transform:translate(0,0) rotate(0deg);} 50%{transform:translate(-22px,20px) rotate(-14deg);} 100%{transform:translate(0,0) rotate(0deg);}}
+  @keyframes driftC{0%{transform:translate(0,0) rotate(0deg) scale(1);} 50%{transform:translate(14px,16px) rotate(16deg) scale(1.06);} 100%{transform:translate(0,0) rotate(0deg) scale(1);}}
+  @media(max-width:800px){ .bg-icon{opacity:.05 !important;} .bg-icon.i1,.bg-icon.i5{font-size:80px;} }
+
+  .app{display:flex;min-height:100vh;position:relative;z-index:1;}
+
+  /* ---------------- Sidebar ---------------- */
+  .sidebar{width:246px;background:linear-gradient(180deg,#0A0A0A 0%,#151018 100%);color:#ccc;flex-shrink:0;padding:18px 12px;display:flex;flex-direction:column;}
+  .brand{padding:8px 10px 22px;border-bottom:1px solid rgba(255,255,255,.07);margin-bottom:14px;}
+  .brand .name{font-size:21px;font-weight:800;color:white;letter-spacing:-.01em;}
+  .brand .name span{color:var(--purple);}
+  .brand .tag{font-size:10.5px;color:#7d7d88;margin-top:3px;letter-spacing:.02em;}
+  .nav-item{position:relative;display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:11px;cursor:pointer;font-size:13.5px;font-weight:500;margin-bottom:4px;color:#9d9da8;transition:.18s ease;}
+  .nav-item:hover{background:rgba(255,255,255,.05);color:#e8e8ee;}
+  .nav-item:hover .nav-icon{background:rgba(255,255,255,.09);color:#e8e8ee;}
+  .nav-item.active{background:linear-gradient(135deg,rgba(124,58,237,.22),rgba(124,58,237,.10));color:white;font-weight:600;box-shadow:inset 0 0 0 1px rgba(124,58,237,.25);}
+  .nav-item.active::before{content:'';position:absolute;left:-12px;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:linear-gradient(180deg,#A78BFA,var(--purple));box-shadow:0 0 8px rgba(124,58,237,.6);}
+  .nav-label{letter-spacing:-.005em;}
+  .nav-icon{display:flex;align-items:center;justify-content:center;width:30px;height:30px;flex-shrink:0;border-radius:9px;background:rgba(255,255,255,.045);color:#83838f;transition:.18s ease;}
+  .nav-icon svg{width:16px;height:16px;}
+  .nav-item.active .nav-icon{background:linear-gradient(135deg,var(--purple),var(--purple-dark));color:white;box-shadow:0 3px 10px rgba(124,58,237,.45);}
+
+  .main{flex:1;min-width:0;}
+  .topbar{display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.85);backdrop-filter:saturate(180%) blur(8px);border-bottom:1px solid var(--border);padding:14px 28px;position:sticky;top:0;z-index:30;}
+  .topbar .date{font-size:13px;color:var(--text-muted);font-weight:500;}
+  .topbar .who{font-size:13px;text-align:right;}
+  .topbar .who .role{color:var(--text-muted);font-size:11px;}
+  #topbar_name{font-weight:600;}
+  .content{padding:28px 32px;max-width:1280px;}
+
+  h1{font-size:23px;margin:0 0 4px;font-weight:800;letter-spacing:-.015em;color:var(--black);}
+  h2{letter-spacing:-.01em;}
+  .subtitle{color:var(--text-muted);font-size:13px;margin:0 0 22px;}
+
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+
+  /* ---------------- Buttons ---------------- */
+  .btn{border:none;border-radius:9px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;background:var(--purple);color:white;transition:.15s ease;box-shadow:0 1px 2px rgba(124,58,237,.25);letter-spacing:-.005em;}
+  .btn:hover{background:var(--purple-dark);transform:translateY(-1px);box-shadow:0 4px 10px rgba(124,58,237,.28);}
+  .btn:active{transform:translateY(0);}
+  .btn.secondary{background:var(--light);color:var(--black);border:1px solid var(--border);box-shadow:none;}
+  .btn.secondary:hover{background:#ececf1;transform:none;box-shadow:none;}
+  .btn.outline{background:white;border:1px solid var(--border);color:var(--text-body);box-shadow:none;}
+  .btn.outline:hover{background:var(--light);border-color:#d4d4dc;transform:none;box-shadow:none;}
+  .btn.danger{background:var(--red);color:white;box-shadow:0 1px 2px rgba(220,38,38,.25);}
+  .btn.danger:hover{background:#B91C1C;box-shadow:0 4px 10px rgba(220,38,38,.28);}
+  .btn.sm{padding:6px 11px;font-size:12px;border-radius:7px;}
+
+  /* ---------------- KPI cards ---------------- */
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin:22px 0;}
+  .kpi{background:white;border:1px solid var(--border-soft);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow-sm);transition:.18s ease;position:relative;overflow:hidden;}
+  .kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--border);}
+  .kpi.positive::before{background:var(--green);}
+  .kpi.negative::before{background:var(--red);}
+  .kpi.warning::before{background:var(--amber);}
+  .kpi:hover{box-shadow:var(--shadow-md);transform:translateY(-2px);border-color:#e2e2ea;}
+  .kpi .label{font-size:10.5px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
+  .kpi .value{font-size:21px;font-weight:800;margin-top:6px;letter-spacing:-.01em;color:var(--black);}
+  .kpi.positive .value{color:var(--green);}
+  .kpi.negative .value{color:var(--red);}
+  .kpi.warning .value{color:var(--amber);}
+
+  /* ---------------- Cards ---------------- */
+  .card{background:white;border:1px solid var(--border-soft);border-radius:var(--radius);padding:20px;margin-bottom:18px;box-shadow:var(--shadow-sm);}
+  .card h3{margin:0 0 14px;font-size:14.5px;font-weight:700;color:var(--black);letter-spacing:-.005em;}
+
+  /* ---------------- Tables ---------------- */
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;background:var(--light);color:var(--text-muted);padding:10px 14px;font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;}
+  th:first-child{border-radius:8px 0 0 8px;}
+  th:last-child{border-radius:0 8px 8px 0;}
+  td{padding:11px 14px;border-bottom:1px solid var(--border-soft);color:var(--text-body);}
+  tbody tr{transition:.1s;}
+  tr:hover td{background:#fafafb;}
+
+  .tag{display:inline-block;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:99px;background:var(--purple-light);color:var(--purple-deep);letter-spacing:.01em;}
+  .muted{color:var(--text-muted);}
+  .amber{color:var(--amber);font-weight:600;}
+  .green{color:var(--green);font-weight:600;}
+  .red{color:var(--red);font-weight:600;}
+
+  /* ---------------- Modals ---------------- */
+  .modal-overlay{position:fixed;inset:0;background:rgba(10,10,12,.5);backdrop-filter:blur(2px);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;z-index:100;}
+  .modal-overlay.open{display:flex;animation:fadeIn .15s ease;}
+  @keyframes fadeIn{from{opacity:0;} to{opacity:1;}}
+  .modal{background:white;border-radius:16px;width:100%;max-width:560px;padding:26px;box-shadow:var(--shadow-lg);animation:slideUp .18s ease;}
+  @keyframes slideUp{from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);}}
+  .modal h2{margin-top:0;font-size:18px;font-weight:800;}
+  .field{margin-bottom:15px;}
+  .field label{display:block;font-size:12px;font-weight:600;color:#4a4a55;margin-bottom:6px;letter-spacing:-.003em;}
+  .field input, .field select, .field textarea{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;background:#fcfcfd;transition:.12s;}
+  .field input:focus, .field select:focus, .field textarea:focus{outline:none;border-color:var(--purple);background:white;box-shadow:0 0 0 3px rgba(124,58,237,.12);}
+  .field .hint{font-size:11px;color:var(--text-muted);margin-top:4px;}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .radio-group{display:flex;gap:18px;}
+  .radio-group label{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--text-body);}
+  .calc-box{background:linear-gradient(135deg,var(--purple-light),#F5F0FF);border-radius:10px;padding:12px 14px;font-size:12.5px;margin-top:8px;border:1px solid #E4D9FB;}
+  .calc-box div{margin:2px 0;}
+  .photo-preview{max-height:90px;border-radius:9px;margin-top:8px;border:1px solid var(--border);}
+  .modal-actions{display:flex;gap:8px;margin-top:20px;}
+  .empty{text-align:center;color:var(--text-muted);padding:36px 0;font-size:13px;}
+  .bar-chart{display:flex;align-items:flex-end;gap:12px;height:150px;padding:12px 6px 4px;}
+  .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+  .bar{width:100%;background:linear-gradient(180deg,#9061F2,var(--purple));border-radius:6px 6px 2px 2px;min-height:2px;transition:.2s;}
+  .bar-label{font-size:10px;color:var(--text-muted);margin-top:6px;text-align:center;line-height:1.25;font-weight:500;}
+  .bar-value{font-size:10.5px;color:var(--text-body);font-weight:700;margin-bottom:3px;}
+  .journal-table td{font-size:12px;}
+  .close-x{float:right;cursor:pointer;font-size:20px;color:#b8b8c2;line-height:1;transition:.12s;}
+  .close-x:hover{color:var(--black);}
+  .accounts-section-title{font-size:11.5px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px;}
+  .hidden{display:none !important;}
+  .badge-status{padding:3px 10px;border-radius:99px;font-size:10.5px;font-weight:700;letter-spacing:.02em;}
+  .badge-pending{background:var(--amber-bg);color:#92400E;}
+  .badge-reimbursed{background:var(--green-bg);color:#065F46;}
+  .badge-partial{background:#E3EEFE;color:#1E40AF;}
+
+  @media(max-width:800px){
+    .sidebar{position:fixed;left:-250px;top:0;bottom:0;z-index:60;transition:.22s ease;box-shadow:var(--shadow-lg);}
+    .sidebar.open{left:0;}
+    .mobile-topbar{display:flex;justify-content:space-between;align-items:center;background:var(--black);color:white;padding:14px 18px;}
+    .mobile-topbar .name span{color:var(--purple);}
+    .overlay-dim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:55;display:none;}
+    .overlay-dim.open{display:block;}
+    .field-row{grid-template-columns:1fr;}
+    .kpi-grid{grid-template-columns:repeat(2,1fr);}
+    table{display:block;overflow-x:auto;white-space:nowrap;}
+    .content{padding:18px;}
+  }
+  .desktop-only{display:block;}
+  @media(max-width:800px){.desktop-only{display:none;}}
+</style>
+</head>
+
+<body>
+
+<!-- Animated floating background — Taka / Dollar / chart icons drifting behind everything -->
+<div class="bg-fx" aria-hidden="true">
+  <span class="bg-icon i1">৳</span>
+  <span class="bg-icon i2">$</span>
+  <span class="bg-icon i3">📈</span>
+  <span class="bg-icon i4">📊</span>
+  <span class="bg-icon i5">৳</span>
+  <span class="bg-icon i6">$</span>
+  <span class="bg-icon i7">📉</span>
+  <span class="bg-icon i8">৳</span>
+</div>
+
+<!-- Auth Screen (Login / Signup) -->
+<div id="authScreen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;position:relative;overflow:hidden;">
+  <div style="width:100%;max-width:380px;background:white;border-radius:18px;padding:32px 30px;box-shadow:0 20px 50px rgba(16,16,20,.10),0 2px 8px rgba(16,16,20,.05);border:1px solid #F0F0F3;position:relative;z-index:1;">
+    <div style="text-align:center;margin-bottom:24px;">
+      <img class="brand-logo" alt="NidusLab" style="width:64px;height:64px;margin:0 auto 14px;display:block;filter:drop-shadow(0 8px 16px rgba(124,58,237,.30));">
+      <div style="font-size:22px;font-weight:800;letter-spacing:-.01em;"><span style="color:#0A0A0A;">Nidus</span><span style="color:#7C3AED;">Lab</span></div>
+      <div style="font-size:11px;color:#9a9aa5;margin-top:2px;letter-spacing:.02em;">BUILDING SMART SOLUTIONS</div>
+      <div style="font-size:13px;color:#555;margin-top:12px;font-weight:500;">Finance &amp; Accounting System</div>
+    </div>
+
+    <!-- Login form -->
+    <div id="loginFormBox">
+      <div class="field"><label>Username</label><input type="text" id="login_username" autocomplete="username"></div>
+      <div class="field"><label>Password</label><input type="password" id="login_password" autocomplete="current-password"></div>
+      <div id="login_error" style="color:#DC2626;font-size:12px;margin-bottom:10px;"></div>
+      <button class="btn" style="width:100%;" onclick="handleLogin()">Sign In</button>
+      <p style="text-align:center;font-size:12px;color:#777;margin-top:16px;">
+        No account yet? <a href="#" onclick="showAuthForm('signup');return false;" style="color:#7C3AED;font-weight:600;">Sign Up</a>
+      </p>
+    </div>
+
+    <!-- Signup form -->
+    <div id="signupFormBox" class="hidden">
+      <div class="field"><label>Full Name</label><input type="text" id="signup_name"></div>
+      <div class="field"><label>Username</label><input type="text" id="signup_username" autocomplete="username"></div>
+      <div class="field"><label>Role</label>
+        <select id="signup_role">
+          <option value="ADMIN">Admin</option>
+          <option value="FINANCE">Finance</option>
+          <option value="EMPLOYEE" selected>Employee</option>
+        </select>
+      </div>
+      <div class="field"><label>Password</label><input type="password" id="signup_password" autocomplete="new-password"></div>
+      <div class="field"><label>Confirm Password</label><input type="password" id="signup_confirm" autocomplete="new-password"></div>
+      <div id="signup_error" style="color:#DC2626;font-size:12px;margin-bottom:10px;"></div>
+      <button class="btn" style="width:100%;" onclick="handleSignup()">Create Account</button>
+      <p style="text-align:center;font-size:12px;color:#777;margin-top:16px;">
+        Already have an account? <a href="#" onclick="showAuthForm('login');return false;" style="color:#7C3AED;font-weight:600;">Sign In</a>
+      </p>
+    </div>
+    <p style="text-align:center;font-size:10.5px;color:#b3b3bd;margin-top:20px;padding-top:16px;border-top:1px solid #F0F0F3;">
+      Demo login: <b>admin</b> / <b>ChangeMe123!</b>
+    </p>
+  </div>
+</div>
+
+<div class="app hidden" id="appRoot">
+  <div class="sidebar" id="sidebar">
+    <div class="brand" style="display:flex;align-items:center;gap:10px;">
+      <img class="brand-logo" alt="NidusLab" style="width:34px;height:34px;flex-shrink:0;">
+      <div>
+        <div class="name">Nidus<span>Lab</span></div>
+        <div class="tag">Finance &amp; Accounting</div>
+      </div>
+    </div>
+    <div id="navList"></div>
+  </div>
+  <div class="overlay-dim" id="overlayDim" onclick="closeSidebar()"></div>
+
+  <div class="main">
+    <div class="mobile-topbar" style="display:none;" id="mobileTopbar">
+      <div class="name" style="display:flex;align-items:center;gap:8px;">
+        <img class="brand-logo" alt="NidusLab" style="width:26px;height:26px;">
+        Nidus<span>Lab</span>
+      </div>
+      <div onclick="openSidebar()" style="cursor:pointer;font-size:20px;">☰</div>
+    </div>
+    <div class="topbar desktop-only" id="desktopTopbar">
+      <div class="date" id="topDate"></div>
+      <div class="who" style="display:flex;align-items:center;gap:12px;">
+        <div style="text-align:right;">
+          <div id="topbar_name">—</div>
+          <div class="role" id="topbar_role">—</div>
+        </div>
+        <button class="btn secondary sm" onclick="openModal('changePasswordModal')">Change Password</button>
+        <button class="btn outline sm" onclick="handleLogout()">Logout</button>
+      </div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<!-- Change Password Modal -->
+<div class="modal-overlay" id="changePasswordModal">
+  <div class="modal">
+    <span class="close-x" onclick="closeModal('changePasswordModal')">&times;</span>
+    <h2>Change Password</h2>
+    <div class="field"><label>Current Password</label><input type="password" id="cp_current"></div>
+    <div class="field"><label>New Password</label><input type="password" id="cp_new"></div>
+    <div class="field"><label>Confirm New Password</label><input type="password" id="cp_confirm"></div>
+    <div id="cp_error" style="color:#DC2626;font-size:12px;margin-bottom:10px;"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="handleChangePassword()">Update Password</button>
+      <button class="btn secondary" onclick="closeModal('changePasswordModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- KPI History Modal -->
+<div class="modal-overlay" id="historyModal">
+  <div class="modal" style="max-width:600px;">
+    <span class="close-x" onclick="closeModal('historyModal')">&times;</span>
+    <div id="historyContent"></div>
+  </div>
+</div>
+
+<!-- Add Expense Modal -->
+<div class="modal-overlay" id="expenseModal">
+  <div class="modal">
+    <span class="close-x" onclick="closeModal('expenseModal')">&times;</span>
+    <h2 id="expenseModalTitle">Add Expense</h2>
+    <input type="hidden" id="exp_editing_id" value="">
+    <div class="field">
+      <label>Date</label>
+      <input type="date" id="exp_date">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Category</label>
+        <select id="exp_category" onchange="toggleCategoryOthers()"></select>
+      </div>
+      <div class="field">
+        <label>Expense Account</label>
+        <select id="exp_account" onchange="toggleAccountOthers()"></select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field hidden" id="exp_category_other_field">
+        <label>Specify Category</label>
+        <input type="text" id="exp_category_other" placeholder="Type category name">
+      </div>
+      <div class="field hidden" id="exp_account_other_field">
+        <label>Specify Account</label>
+        <input type="text" id="exp_account_other" placeholder="Type account name">
+      </div>
+    </div>
+    <div class="field hidden" id="exp_others_photo_field">
+      <label>+ Add Photo (optional)</label>
+      <input type="file" id="exp_others_photo" accept="image/*" onchange="previewOthersPhoto(event)">
+      <div class="hint">Since "Others" was selected, you can optionally attach a supporting photo (receipt, item, bill, etc.).</div>
+      <img id="exp_others_photo_preview" class="photo-preview hidden">
+    </div>
+    <div class="field">
+      <label>Description (optional)</label>
+      <input type="text" id="exp_description" placeholder='e.g. "Bought 20 T-shirts for seminar"'>
+    </div>
+    <div class="field" id="exp_photo_field">
+      <label>+ Add Photo / File (optional)</label>
+      <input type="file" id="exp_photo" accept="image/*,application/pdf" onchange="previewExpensePhoto(event)">
+      <div class="hint">Attach a photo or file of the item, receipt, bill, or delivery proof — completely optional, you can save the expense without it.</div>
+      <img id="exp_photo_preview" class="photo-preview hidden">
+      <div id="exp_photo_filename" class="hint hidden"></div>
+    </div>
+    <div class="field">
+      <label>Vendor (optional)</label>
+      <input type="text" id="exp_vendor" placeholder="e.g. ABC Printers">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Amount (৳)</label>
+        <input type="number" id="exp_amount" min="0" step="0.01" oninput="updateExpensePreview()">
+      </div>
+      <div class="field">
+        <label>Payment Method</label>
+        <select id="exp_method">
+          <option value="CASH">Cash</option>
+          <option value="BANK_TRANSFER">Bank Transfer</option>
+          <option value="BKASH">bKash</option>
+          <option value="NAGAD">Nagad</option>
+          <option value="CARD">Card</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Paid By</label>
+      <div class="radio-group">
+        <label><input type="radio" name="exp_paidby" value="COMPANY" checked onchange="toggleEmployeeField()"> Company</label>
+        <label><input type="radio" name="exp_paidby" value="EMPLOYEE" onchange="toggleEmployeeField()"> Employee</label>
+      </div>
+    </div>
+    <div class="field hidden" id="exp_employee_field">
+      <label>Employee</label>
+      <div class="row" style="gap:6px;flex-wrap:nowrap;">
+        <select id="exp_employee" style="flex:1;"></select>
+        <button type="button" class="btn secondary sm" onclick="addEmployeePrompt()" title="Add new employee">+ Add</button>
+        <button type="button" class="btn secondary sm" onclick="removeEmployeePrompt()" title="Remove selected employee">Remove</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Notes (optional)</label>
+      <textarea id="exp_notes" rows="2"></textarea>
+    </div>
+    <div class="calc-box" id="exp_calc_preview"></div>
+    <div class="modal-actions">
+      <button class="btn" id="expenseSaveBtn" onclick="saveExpense()">Save Expense</button>
+      <button class="btn secondary" onclick="closeModal('expenseModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Revenue Modal -->
+<div class="modal-overlay" id="revenueModal">
+  <div class="modal">
+    <span class="close-x" onclick="closeModal('revenueModal')">&times;</span>
+    <h2 id="revenueModalTitle">Add Revenue</h2>
+    <input type="hidden" id="rev_editing_id" value="">
+    <div class="field-row">
+      <div class="field"><label>Date</label><input type="date" id="rev_date"></div>
+      <div class="field">
+        <label>Revenue Type</label>
+        <select id="rev_type">
+          <option value="Sales Revenue">Sales Revenue</option>
+          <option value="Service Revenue">Service Revenue</option>
+          <option value="Other Income">Other Income</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Customer (optional)</label><input type="text" id="rev_customer"></div>
+    <div class="field"><label>Description</label><input type="text" id="rev_description"></div>
+    <div class="field-row">
+      <div class="field"><label>Amount (৳)</label><input type="number" id="rev_amount" min="0" step="0.01"></div>
+      <div class="field">
+        <label>Payment Method</label>
+        <select id="rev_method">
+          <option value="CASH">Cash</option>
+          <option value="BANK_TRANSFER">Bank Transfer</option>
+          <option value="BKASH">bKash</option>
+          <option value="NAGAD">Nagad</option>
+          <option value="CARD">Card</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="revenueSaveBtn" onclick="saveRevenue()">Save Revenue</button>
+      <button class="btn secondary" onclick="closeModal('revenueModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Expense Detail Modal -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal" style="max-width:640px;">
+    <span class="close-x" onclick="closeModal('detailModal')">&times;</span>
+    <div id="detailContent"></div>
+  </div>
+</div>
+
+<!-- Reimbursement Payment Modal -->
+<div class="modal-overlay" id="reimburseModal">
+  <div class="modal">
+    <span class="close-x" onclick="closeModal('reimburseModal')">&times;</span>
+    <h2>Record Reimbursement Payment</h2>
+    <input type="hidden" id="reimburse_expense_id">
+    <div class="field"><label>Amount to reimburse now (৳)</label><input type="number" id="reimburse_amount" min="0" step="0.01"></div>
+    <div class="field"><label>Payment Method</label>
+      <select id="reimburse_method">
+        <option value="CASH">Cash</option>
+        <option value="BANK_TRANSFER">Bank Transfer</option>
+        <option value="BKASH">bKash</option>
+        <option value="NAGAD">Nagad</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="saveReimbursementPayment()">Record Payment</button>
+      <button class="btn secondary" onclick="closeModal('reimburseModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   NidusLab Finance — single-file demo
+   Data persists in this browser via localStorage.
+   ========================================================= */
+
+const LOGO_DATA_URI = 'data:image/png;base64,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PM8n/oiAx6lqLlpw7ConImAflgjbokL6dnhpRiJKTiImpzcHEDPVO4pTX8NKhWsU3ungTMGgTqq7oMFn6Q3rKVUVdwj9VCjoE1UoaT2cFtIoUTfF/TtjE80gqHV9QXGvDw1UqVIQhFoGX2i/5i85Fvs004xQFhHFhrBlDUCwCohjirFXYkx+sIcqkOc5mDO0WmPITIbJyQlMTY1h186d2LNnT/tJT37yl6+8ZM87d05N/PVLX/rSBQCYmZnh2dnZbUP80Da5BgWA5z//p/csL9OlgE6pSoucyx1JxkpciGMDJajfmpwTdSRKVIgqWSIsT0+3vvmlL73nIWCGgdlB6XsEQJ///AMTx07d8x1qWhPOdnPDLlPxK9Soshpmo8zKfloBORFHJCQilJFaIiVrlZj9QrKkRKRUDRtQZBmpT3IiwCKDITWGsywDWReEt5mI4tgJMQtZUiKnReGD38wsIFJLhVLBCvLHA7oAWqh/lqpSF0BeH3yZx4lI/jVUkHbRxaBzGCNSoFUbnNlFQaQoWNECoBnlqiQi7H/uJUFyqCrlAFQzgiqJkT5/SJU5y5RUhON9onBdqhmpdFiRUZZ5Q9fCwv9NKSdSCyBDBtWCiHK1hUXeynViAphqjclFF19y6m//+l3fjMe7UW80B3BAaBuUAG9HZpq80J4/Dhw4YFZ5SZoO/BjCjTfeaLbDFODtbAH0XM9MuKZDdKDOGQDo/XkAsyBrJMZXSC44sBp7scrfZ2rHP0SDz34l7A/vn91mj3am55pmeu7RRrR9/62N/9y/f7/Ozs4qUuu0hISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISN4f8Hc80INGZ69HkAAAAASUVORK5CYII=';
+const STORAGE_KEY = 'niduslab_finance_demo_v1';
+const USERS_KEY = 'niduslab_finance_users_v1';
+const SESSION_KEY = 'niduslab_finance_session_v1';
+const DEFAULT_EMPLOYEES = ['Prima Islam', 'Rahim Uddin', 'Karim Ahmed'];
+const EXPENSE_CATEGORIES = ['T-shirt / Merchandise','Printing','Food & Refreshment','Transport','Event','Marketing','Advertising','Office Supplies','Stationery','Courier & Delivery','Software & Subscription','Internet & Communication','Travel','Accommodation','Client Meeting','Campus Visit','Seminar','Training & Development','Miscellaneous'];
+
+/* ---------------------------------------------------------
+   Auth — Login / Signup / Change Password
+   NOTE: this is a client-side, localStorage-only demo. The
+   password "hashing" below is a simple non-cryptographic
+   scramble, adequate for a local single-file demo but NOT
+   real security. The full Next.js/Prisma build uses bcrypt +
+   NextAuth server-side — use that for anything real.
+   --------------------------------------------------------- */
+function simpleHash(str){
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++){
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1>>>16), 2246822507) ^ Math.imul(h2 ^ (h2>>>13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2>>>16), 2246822507) ^ Math.imul(h1 ^ (h1>>>13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1>>>0)).toString(36);
+}
+
+function loadUsers(){
+  const raw = localStorage.getItem(USERS_KEY);
+  if (raw) return JSON.parse(raw);
+  const seeded = [
+    { username: 'admin', name: 'Admin User', role: 'ADMIN', passwordHash: simpleHash('ChangeMe123!') },
+  ];
+  localStorage.setItem(USERS_KEY, JSON.stringify(seeded));
+  return seeded;
+}
+function saveUsers(users){ localStorage.setItem(USERS_KEY, JSON.stringify(users)); }
+
+function currentUser(){
+  const raw = localStorage.getItem(SESSION_KEY);
+  return raw ? JSON.parse(raw) : null;
+}
+function setCurrentUser(user){ localStorage.setItem(SESSION_KEY, JSON.stringify(user)); }
+function clearCurrentUser(){ localStorage.removeItem(SESSION_KEY); }
+
+function showAuthForm(which){
+  document.getElementById('loginFormBox').classList.toggle('hidden', which !== 'login');
+  document.getElementById('signupFormBox').classList.toggle('hidden', which !== 'signup');
+  document.getElementById('login_error').textContent = '';
+  document.getElementById('signup_error').textContent = '';
+}
+
+function handleLogin(){
+  const username = document.getElementById('login_username').value.trim().toLowerCase();
+  const password = document.getElementById('login_password').value;
+  const users = loadUsers();
+  const user = users.find(u => u.username.toLowerCase() === username);
+  if (!user || user.passwordHash !== simpleHash(password)){
+    document.getElementById('login_error').textContent = 'Invalid username or password.';
+    return;
+  }
+  setCurrentUser({ username: user.username, name: user.name, role: user.role });
+  enterApp();
+}
+
+function handleSignup(){
+  const name = document.getElementById('signup_name').value.trim();
+  const username = document.getElementById('signup_username').value.trim().toLowerCase();
+  const role = document.getElementById('signup_role').value;
+  const password = document.getElementById('signup_password').value;
+  const confirm = document.getElementById('signup_confirm').value;
+  const errBox = document.getElementById('signup_error');
+
+  if (!name || !username || !password){ errBox.textContent = 'Please fill in all fields.'; return; }
+  if (password.length < 6){ errBox.textContent = 'Password must be at least 6 characters.'; return; }
+  if (password !== confirm){ errBox.textContent = 'Passwords do not match.'; return; }
+
+  const users = loadUsers();
+  if (users.some(u => u.username.toLowerCase() === username)){
+    errBox.textContent = 'That username is already taken.';
+    return;
+  }
+  const newUser = { username, name, role, passwordHash: simpleHash(password) };
+  users.push(newUser);
+  saveUsers(users);
+  setCurrentUser({ username: newUser.username, name: newUser.name, role: newUser.role });
+  enterApp();
+}
+
+function handleLogout(){
+  clearCurrentUser();
+  location.reload();
+}
+
+function handleChangePassword(){
+  const cur = document.getElementById('cp_current').value;
+  const next = document.getElementById('cp_new').value;
+  const confirm = document.getElementById('cp_confirm').value;
+  const errBox = document.getElementById('cp_error');
+
+  const session = currentUser();
+  const users = loadUsers();
+  const user = users.find(u => u.username === session.username);
+  if (!user || user.passwordHash !== simpleHash(cur)){
+    errBox.textContent = 'Current password is incorrect.';
+    return;
+  }
+  if (next.length < 6){ errBox.textContent = 'New password must be at least 6 characters.'; return; }
+  if (next !== confirm){ errBox.textContent = 'New passwords do not match.'; return; }
+
+  user.passwordHash = simpleHash(next);
+  saveUsers(users);
+  errBox.style.color = '#059669';
+  errBox.textContent = 'Password updated successfully.';
+  setTimeout(() => { closeModal('changePasswordModal'); errBox.style.color = '#DC2626'; errBox.textContent=''; document.getElementById('cp_current').value=''; document.getElementById('cp_new').value=''; document.getElementById('cp_confirm').value=''; }, 900);
+}
+
+function enterApp(){
+  const user = currentUser();
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('appRoot').classList.remove('hidden');
+  document.getElementById('topbar_name').textContent = user.name;
+  document.getElementById('topbar_role').textContent = user.role + ' (local demo)';
+  data = loadData();
+  render();
+}
+
+
+const CHART_OF_ACCOUNTS = [
+  {code:'1000',name:'Cash',type:'ASSET'},
+  {code:'1010',name:'Bank Account',type:'ASSET'},
+  {code:'1020',name:'bKash / Mobile Wallet',type:'ASSET'},
+  {code:'1030',name:'Accounts Receivable',type:'ASSET'},
+  {code:'1040',name:'Advance to Vendor',type:'ASSET'},
+  {code:'1050',name:'Employee Advance',type:'ASSET'},
+  {code:'2000',name:'Accounts Payable',type:'LIABILITY'},
+  {code:'2010',name:'Employee Reimbursement Payable',type:'LIABILITY'},
+  {code:'2020',name:'Loan Payable',type:'LIABILITY'},
+  {code:'2030',name:'Tax / VAT Payable',type:'LIABILITY'},
+  {code:'3000',name:"Owner's Capital",type:'EQUITY'},
+  {code:'3010',name:'Retained Earnings',type:'EQUITY'},
+  {code:'3020',name:"Owner's Drawings",type:'EQUITY'},
+  {code:'4000',name:'Sales Revenue',type:'REVENUE'},
+  {code:'4010',name:'Service Revenue',type:'REVENUE'},
+  {code:'4020',name:'Other Income',type:'REVENUE'},
+  {code:'5000',name:'Marketing Expense',type:'EXPENSE'},
+  {code:'5010',name:'Advertising Expense',type:'EXPENSE'},
+  {code:'5020',name:'Transport Expense',type:'EXPENSE'},
+  {code:'5030',name:'Food & Refreshment',type:'EXPENSE'},
+  {code:'5040',name:'Printing Expense',type:'EXPENSE'},
+  {code:'5050',name:'T-shirt / Merchandise',type:'EXPENSE'},
+  {code:'5060',name:'Office Supplies',type:'EXPENSE'},
+  {code:'5070',name:'Software & Subscription',type:'EXPENSE'},
+  {code:'5080',name:'Internet & Communication',type:'EXPENSE'},
+  {code:'5090',name:'Travel Expense',type:'EXPENSE'},
+  {code:'5100',name:'Accommodation',type:'EXPENSE'},
+  {code:'5110',name:'Event Expense',type:'EXPENSE'},
+  {code:'5120',name:'Courier & Delivery',type:'EXPENSE'},
+  {code:'5130',name:'Client Meeting',type:'EXPENSE'},
+  {code:'5140',name:'Training & Development',type:'EXPENSE'},
+  {code:'5150',name:'Miscellaneous Expense',type:'EXPENSE'},
+];
+
+const ICONS = {
+  dashboard: '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.6"/><rect x="11" y="2" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.6"/><rect x="2" y="11" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.6"/><rect x="11" y="11" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.6"/></svg>',
+  expenses: '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 2.2h10v14.6l-2-1.2-1.5 1.2-1.5-1.2-1.5 1.2-1.5-1.2-2 1.2V2.2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.3 6.8h5.4M7.3 9.6h5.4M7.3 12.4h3.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+  reimbursements: '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="7" cy="7.5" r="4.2" stroke="currentColor" stroke-width="1.6"/><circle cx="13" cy="12.5" r="4.2" stroke="currentColor" stroke-width="1.6"/></svg>',
+  revenue: '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2.3 14.2l4.7-5 3 3 5.7-6.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M12.2 3.8h3.5v3.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  summary: '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="14" height="14" rx="2.2" stroke="currentColor" stroke-width="1.6"/><path d="M6.5 7.6h7M6.5 10.4h7M6.5 13.2h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+  accounts: '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4.2 3.8c0-.9.7-1.6 1.6-1.6H16v13.6H5.8c-.9 0-1.6.7-1.6 1.6V3.8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M4.2 15.8c0-.9.7-1.6 1.6-1.6H16" stroke="currentColor" stroke-width="1.5"/></svg>',
+};
+
+const NAV = [
+  {id:'dashboard', label:'Dashboard', icon:ICONS.dashboard},
+  {id:'expenses', label:'Expenses', icon:ICONS.expenses},
+  {id:'reimbursements', label:'Reimbursements', icon:ICONS.reimbursements},
+  {id:'revenue', label:'Revenue', icon:ICONS.revenue},
+  {id:'summary', label:'Summary', icon:ICONS.summary},
+  {id:'accounts', label:'Chart of Accounts', icon:ICONS.accounts},
+];
+
+let state = { currentTab: 'dashboard' };
+let data = null; // loaded after login via enterApp()
+
+function loadData(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) {
+    const parsed = JSON.parse(raw);
+    if (!parsed.employees) parsed.employees = [...DEFAULT_EMPLOYEES]; // migrate older saved data
+    return parsed;
+  }
+  return seedData();
+}
+function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+function uid(){ return 'id_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+
+function formatBDT(n){
+  n = Number(n) || 0;
+  const abs = Math.abs(n);
+  const formatted = abs.toLocaleString('en-US', {maximumFractionDigits: abs % 1 === 0 ? 0 : 2});
+  return (n < 0 ? '-' : '') + '৳' + formatted;
+}
+function formatDate(d){
+  const dt = new Date(d);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return String(dt.getDate()).padStart(2,'0') + '-' + months[dt.getMonth()] + '-' + dt.getFullYear();
+}
+
+/* ---------------------------------------------------------
+   Seed data — matches the sample scenarios from the spec
+   --------------------------------------------------------- */
+function seedData(){
+  const seeded = { expenses: [], revenue: [], employees: [...DEFAULT_EMPLOYEES] };
+  const transport = makeExpense({
+    date: todayStr(), category: 'Transport', accountCode:'5020',
+    description: 'Transport to client meeting', amount: 500,
+    paidBy: 'EMPLOYEE', paymentMethod: 'CASH', employee: 'Prima Islam', vendor:'', notes:'', photo:null
+  });
+  const food = makeExpense({
+    date: todayStr(), category: 'Food & Refreshment', accountCode:'5030',
+    description: 'Team lunch', amount: 800,
+    paidBy: 'COMPANY', paymentMethod: 'CASH', employee:'', vendor:'', notes:'', photo:null
+  });
+  const tshirt = makeExpense({
+    date: todayStr(), category: 'T-shirt / Merchandise', accountCode:'5050',
+    description: 'T-shirt order for seminar (partially paid by employee)', amount: 40000,
+    paidBy: 'EMPLOYEE', paymentMethod: 'BKASH', employee:'Prima Islam', vendor:'BrightPrint BD', notes:'Full amount owed back — vendor portion tracked separately once Orders module is added.', photo:null
+  });
+  seeded.expenses = [transport, food, tshirt];
+  seeded.revenue = [
+    { id: uid(), date: todayStr(), type:'Service Revenue', customer:'Acme Retail', description:'NidusJob subscription — August', amount:120000, paymentMethod:'BANK_TRANSFER', createdAt: Date.now() }
+  ];
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
+  return seeded;
+}
+
+/* ---------------------------------------------------------
+   Accounting engine — mirrors src/lib/accounting.ts from the
+   full Next.js/Prisma build. Journal entries are computed the
+   same way; here they're stored as plain objects instead of
+   Postgres rows.
+   --------------------------------------------------------- */
+function accountByCode(code){ return CHART_OF_ACCOUNTS.find(a => a.code === code); }
+
+function cashAccountForMethod(method){
+  switch(method){
+    case 'CASH': return '1000';
+    case 'BANK_TRANSFER': case 'CARD': return '1010';
+    case 'BKASH': case 'NAGAD': return '1020';
+    default: return '1000';
+  }
+}
+
+function buildExpenseJournal({accountCode, cashAccountCode, amount, paidBy}){
+  const lines = [{ accountCode, debit: amount, credit: 0 }];
+  if (paidBy === 'COMPANY') {
+    lines.push({ accountCode: cashAccountCode, debit: 0, credit: amount });
+  } else {
+    lines.push({ accountCode: '2010', debit: 0, credit: amount }); // Employee Reimbursement Payable
+  }
+  return lines;
+}
+
+function assertBalanced(lines){
+  const debit = lines.reduce((s,l)=>s+l.debit,0);
+  const credit = lines.reduce((s,l)=>s+l.credit,0);
+  if (Math.round(debit*100) !== Math.round(credit*100)) {
+    throw new Error('Unbalanced journal entry — rejected. Debit ' + debit + ' vs Credit ' + credit);
+  }
+}
+
+function makeExpense({date, category, accountCode, accountLabel, description, amount, paidBy, paymentMethod, employee, vendor, notes, photo, photoName, othersPhoto}){
+  amount = Number(amount);
+  const companyPaid = paidBy === 'COMPANY' ? amount : 0;
+  const employeePaid = paidBy === 'EMPLOYEE' ? amount : 0;
+  const reimbursedAmount = 0;
+  const companyOutstanding = Math.max(amount - companyPaid - employeePaid, 0);
+  const employeeOutstanding = Math.max(employeePaid - reimbursedAmount, 0);
+
+  // "Others" accounts still post to Miscellaneous Expense (5150) internally so
+  // the double-entry books stay valid, while displaying the custom label the
+  // user typed.
+  const journalAccountCode = accountCode === 'OTHERS' ? '5150' : accountCode;
+  const cashAccountCode = cashAccountForMethod(paymentMethod);
+  const journal = buildExpenseJournal({ accountCode: journalAccountCode, cashAccountCode, amount, paidBy });
+  assertBalanced(journal);
+
+  return {
+    id: uid(), date, category, accountCode: journalAccountCode, accountLabel: accountLabel || null,
+    description, vendor, amount,
+    paidBy, paymentMethod, employee: paidBy === 'EMPLOYEE' ? employee : null,
+    companyPaid, employeePaid, reimbursedAmount, companyOutstanding, employeeOutstanding,
+    notes, photo: photo || null, photoName: photo ? (photoName || null) : null, othersPhoto: othersPhoto || null, journal, createdAt: Date.now(),
+    reimbursementStatus: paidBy === 'EMPLOYEE' ? 'SUBMITTED' : null,
+  };
+}
+
+/* ---------------------------------------------------------
+   Rendering
+   --------------------------------------------------------- */
+function render(){
+  renderNav();
+  document.getElementById('topDate').textContent = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
+  const c = document.getElementById('content');
+  if (state.currentTab === 'dashboard') c.innerHTML = renderDashboard();
+  else if (state.currentTab === 'expenses') c.innerHTML = renderExpenses();
+  else if (state.currentTab === 'reimbursements') c.innerHTML = renderReimbursements();
+  else if (state.currentTab === 'revenue') c.innerHTML = renderRevenue();
+  else if (state.currentTab === 'summary') c.innerHTML = renderSummary();
+  else if (state.currentTab === 'accounts') c.innerHTML = renderAccounts();
+  if (state.currentTab === 'summary') attachSummaryHandlers();
+}
+
+function renderNav(){
+  const nav = document.getElementById('navList');
+  nav.innerHTML = NAV.map(n => `
+    <div class="nav-item ${state.currentTab===n.id?'active':''}" onclick="switchTab('${n.id}')">
+      <span class="nav-icon">${n.icon}</span><span class="nav-label">${n.label}</span>
+    </div>`).join('');
+}
+function switchTab(id){ state.currentTab = id; closeSidebar(); render(); }
+function openSidebar(){ document.getElementById('sidebar').classList.add('open'); document.getElementById('overlayDim').classList.add('open'); }
+function closeSidebar(){ document.getElementById('sidebar').classList.remove('open'); document.getElementById('overlayDim').classList.remove('open'); }
+
+function computeKpis(){
+  const totalRevenue = data.revenue.reduce((s,r)=>s+Number(r.amount),0);
+  const totalExpenses = data.expenses.reduce((s,e)=>s+Number(e.amount),0);
+  const companyPaid = data.expenses.reduce((s,e)=>s+Number(e.companyPaid),0);
+  const employeePaid = data.expenses.reduce((s,e)=>s+Number(e.employeePaid),0);
+  const totalReimbursed = data.expenses.reduce((s,e)=>s+Number(e.reimbursedAmount),0);
+  const employeeOutstanding = data.expenses.reduce((s,e)=>s+Number(e.employeeOutstanding),0);
+  const vendorOutstanding = data.expenses.reduce((s,e)=>s+Number(e.companyOutstanding),0);
+  return { totalRevenue, totalExpenses, companyPaid, employeePaid, totalReimbursed, employeeOutstanding, vendorOutstanding, netIncome: totalRevenue - totalExpenses };
+}
+
+/* ---------------------------------------------------------
+   KPI History — click any dashboard card to see its timeline
+   --------------------------------------------------------- */
+function buildKpiHistory(key){
+  const rows = [];
+  if (key === 'totalRevenue'){
+    data.revenue.forEach(r => rows.push({ date: r.date, label: `${r.type} — ${r.description||r.customer||''}`, amount: Number(r.amount), sign: '+' }));
+  } else if (key === 'totalExpenses'){
+    data.expenses.forEach(e => rows.push({ date: e.date, label: `${e.category} — ${e.description}`, amount: Number(e.amount), sign: '-' }));
+  } else if (key === 'companyPaid'){
+    data.expenses.filter(e=>e.companyPaid>0).forEach(e => rows.push({ date: e.date, label: `${e.category} — ${e.description}`, amount: Number(e.companyPaid), sign: '-' }));
+  } else if (key === 'employeePaid'){
+    data.expenses.filter(e=>e.employeePaid>0).forEach(e => rows.push({ date: e.date, label: `${e.employee} paid — ${e.description}`, amount: Number(e.employeePaid), sign: '-' }));
+  } else if (key === 'totalReimbursed'){
+    data.expenses.forEach(e => (e.reimbursementPayments||[]).forEach(p => rows.push({ date: p.date, label: `Reimbursed ${e.employee} — ${e.description} (${p.method.replace('_',' ')})`, amount: Number(p.amount), sign: '+' })));
+  } else if (key === 'employeeOutstanding'){
+    data.expenses.filter(e=>e.employeeOutstanding>0).forEach(e => rows.push({ date: e.date, label: `Owed to ${e.employee} — ${e.description}`, amount: Number(e.employeeOutstanding), sign: '=' }));
+  } else if (key === 'vendorOutstanding'){
+    data.expenses.filter(e=>e.companyOutstanding>0).forEach(e => rows.push({ date: e.date, label: `Owed to ${e.vendor||'vendor'} — ${e.description}`, amount: Number(e.companyOutstanding), sign: '=' }));
+  } else if (key === 'netIncome'){
+    data.revenue.forEach(r => rows.push({ date: r.date, label: `${r.type} — ${r.description||r.customer||''}`, amount: Number(r.amount), sign: '+' }));
+    data.expenses.forEach(e => rows.push({ date: e.date, label: `${e.category} — ${e.description}`, amount: Number(e.amount), sign: '-' }));
+  }
+  return rows.sort((a,b)=> new Date(a.date) - new Date(b.date));
+}
+
+const KPI_TITLES = {
+  totalRevenue: 'Total Revenue — History', totalExpenses: 'Total Expenses — History',
+  companyPaid: 'Company Paid — History', employeePaid: 'Employee Paid — History',
+  totalReimbursed: 'Total Reimbursed — History', employeeOutstanding: 'Employee Outstanding — History',
+  vendorOutstanding: 'Vendor Outstanding — History', netIncome: 'Net Income — History',
+};
+
+function showKpiHistory(key){
+  const rows = buildKpiHistory(key);
+  let running = 0;
+  const rowsHtml = rows.map(r => {
+    if (r.sign === '+') running += r.amount;
+    else if (r.sign === '-') running -= r.amount;
+    return `<tr>
+      <td>${formatDate(r.date)}</td>
+      <td>${r.label}</td>
+      <td style="text-align:right;" class="${r.sign==='+'?'green':r.sign==='-'?'red':'amber'}">${r.sign==='='?'':r.sign}${formatBDT(r.amount)}</td>
+      ${r.sign!=='=' ? `<td style="text-align:right;color:#888;">${formatBDT(running)}</td>` : `<td></td>`}
+    </tr>`;
+  }).join('');
+
+  document.getElementById('historyContent').innerHTML = `
+    <h2 style="margin-bottom:2px;">${KPI_TITLES[key] || 'History'}</h2>
+    <p class="subtitle">When each amount was added, oldest first.</p>
+    <table>
+      <thead><tr><th>Date</th><th>Description</th><th style="text-align:right;">Amount</th><th style="text-align:right;">Running Total</th></tr></thead>
+      <tbody>${rowsHtml || `<tr><td colspan="4" class="empty">No records yet.</td></tr>`}</tbody>
+    </table>
+  `;
+  openModal('historyModal');
+}
+
+function renderDashboard(){
+  const k = computeKpis();
+  const byCategory = {};
+  data.expenses.forEach(e => { byCategory[e.category] = (byCategory[e.category]||0) + Number(e.amount); });
+  const categories = Object.entries(byCategory).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const maxVal = Math.max(1, ...categories.map(c=>c[1]));
+
+  const recent = [
+    ...data.expenses.map(e=>({type:'Expense', date:e.createdAt, label: e.category + ' — ' + e.description, amount:e.amount})),
+    ...data.revenue.map(r=>({type:'Revenue', date:r.createdAt, label: r.type + ' — ' + (r.description||''), amount:r.amount})),
+  ].sort((a,b)=>b.date-a.date).slice(0,8);
+
+  return `
+    <h1>NidusLab Financial Dashboard</h1>
+    <p class="subtitle">Local demo — data is stored in this browser only.</p>
+    <div class="row" style="margin-bottom:6px;">
+      <button class="btn" onclick="openModal('expenseModal'); prepExpenseModal();">+ Add Expense</button>
+      <button class="btn secondary" onclick="openModal('revenueModal'); prepRevenueModal();">+ Add Revenue</button>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi positive" style="cursor:pointer;" onclick="showKpiHistory('totalRevenue')"><div class="label">Total Revenue</div><div class="value">${formatBDT(k.totalRevenue)}</div></div>
+      <div class="kpi negative" style="cursor:pointer;" onclick="showKpiHistory('totalExpenses')"><div class="label">Total Expenses</div><div class="value">${formatBDT(k.totalExpenses)}</div></div>
+      <div class="kpi" style="cursor:pointer;" onclick="showKpiHistory('companyPaid')"><div class="label">Company Paid</div><div class="value">${formatBDT(k.companyPaid)}</div></div>
+      <div class="kpi" style="cursor:pointer;" onclick="showKpiHistory('employeePaid')"><div class="label">Employee Paid</div><div class="value">${formatBDT(k.employeePaid)}</div></div>
+      <div class="kpi" style="cursor:pointer;" onclick="showKpiHistory('totalReimbursed')"><div class="label">Total Reimbursed</div><div class="value">${formatBDT(k.totalReimbursed)}</div></div>
+      <div class="kpi warning" style="cursor:pointer;" onclick="showKpiHistory('employeeOutstanding')"><div class="label">Employee Outstanding</div><div class="value">${formatBDT(k.employeeOutstanding)}</div></div>
+      <div class="kpi warning" style="cursor:pointer;" onclick="showKpiHistory('vendorOutstanding')"><div class="label">Vendor Outstanding</div><div class="value">${formatBDT(k.vendorOutstanding)}</div></div>
+      <div class="kpi ${k.netIncome>=0?'positive':'negative'}" style="cursor:pointer;" onclick="showKpiHistory('netIncome')"><div class="label">Net Income</div><div class="value">${formatBDT(k.netIncome)}</div></div>
+    </div>
+    <p class="subtitle" style="margin-top:-12px;">💡 Click any card above to see its full history.</p>
+
+    <div class="card">
+      <h3>Expense by Category</h3>
+      ${categories.length ? `<div class="bar-chart">
+        ${categories.map(([name,val])=>`
+          <div class="bar-col">
+            <div class="bar-value">${formatBDT(val)}</div>
+            <div class="bar" style="height:${Math.max(4,(val/maxVal)*100)}px;"></div>
+            <div class="bar-label">${name}</div>
+          </div>`).join('')}
+      </div>` : '<div class="empty">No expenses yet.</div>'}
+    </div>
+
+    <div class="card">
+      <h3>Recent Activity</h3>
+      ${recent.length ? recent.map(a=>`
+        <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f2f2f2;font-size:13px;">
+          <div><span class="tag">${a.type}</span> ${a.label}</div>
+          <div><b>${formatBDT(a.amount)}</b></div>
+        </div>`).join('') : '<div class="empty">No activity yet.</div>'}
+    </div>
+  `;
+}
+
+function renderExpenses(){
+  const rows = [...data.expenses].sort((a,b)=>b.createdAt-a.createdAt);
+  return `
+    <div class="row" style="justify-content:space-between;">
+      <h1>Expenses</h1>
+      <button class="btn" onclick="openModal('expenseModal'); prepExpenseModal();">+ Add Expense</button>
+    </div>
+    <div class="card" style="padding:0;overflow-x:auto;">
+      <table>
+        <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Paid By</th><th>Amount</th><th>Company Outst.</th><th>Employee Outst.</th><th></th></tr></thead>
+        <tbody>
+          ${rows.length ? rows.map(e=>`
+            <tr>
+              <td style="cursor:pointer;" onclick="showExpenseDetail('${e.id}')">${formatDate(e.date)}</td>
+              <td style="cursor:pointer;" onclick="showExpenseDetail('${e.id}')">${e.category}</td>
+              <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="showExpenseDetail('${e.id}')">${e.description||'—'}</td>
+              <td style="cursor:pointer;" onclick="showExpenseDetail('${e.id}')">${e.paidBy==='EMPLOYEE' ? (e.employee||'Employee') : 'Company'}</td>
+              <td style="cursor:pointer;" onclick="showExpenseDetail('${e.id}')"><b>${formatBDT(e.amount)}</b></td>
+              <td class="amber" style="cursor:pointer;" onclick="showExpenseDetail('${e.id}')">${formatBDT(e.companyOutstanding)}</td>
+              <td class="amber" style="cursor:pointer;" onclick="showExpenseDetail('${e.id}')">${formatBDT(e.employeeOutstanding)}</td>
+              <td class="row" style="gap:6px;flex-wrap:nowrap;">
+                <button class="btn sm outline" onclick="event.stopPropagation(); openEditExpense('${e.id}')">Edit</button>
+                <button class="btn sm danger" onclick="event.stopPropagation(); deleteExpense('${e.id}')">Delete</button>
+              </td>
+            </tr>`).join('') : `<tr><td colspan="8" class="empty">No expenses recorded yet.</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderReimbursements(){
+  const rows = data.expenses.filter(e => e.paidBy === 'EMPLOYEE');
+  return `
+    <h1>Reimbursements</h1>
+    <p class="subtitle">Automatically created whenever an expense is marked "Paid By: Employee".</p>
+    <div class="card" style="padding:0;overflow-x:auto;">
+      <table>
+        <thead><tr><th>Date</th><th>Employee</th><th>Description</th><th>Paid</th><th>Reimbursed</th><th>Outstanding</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${rows.length ? rows.map(e=>{
+            const status = e.employeeOutstanding <= 0 ? 'REIMBURSED' : (e.reimbursedAmount>0 ? 'PARTIAL' : 'PENDING');
+            const badgeClass = status==='REIMBURSED'?'badge-reimbursed':status==='PARTIAL'?'badge-partial':'badge-pending';
+            return `<tr>
+              <td>${formatDate(e.date)}</td>
+              <td>${e.employee}</td>
+              <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;">${e.description||'—'}</td>
+              <td>${formatBDT(e.employeePaid)}</td>
+              <td class="green">${formatBDT(e.reimbursedAmount)}</td>
+              <td class="amber">${formatBDT(e.employeeOutstanding)}</td>
+              <td><span class="badge-status ${badgeClass}">${status}</span></td>
+              <td class="row" style="gap:6px;flex-wrap:nowrap;">
+                ${e.employeeOutstanding>0 ? `<button class="btn sm" onclick="openReimburseModal('${e.id}')">Record Payment</button>` : ''}
+                <button class="btn sm outline" onclick="openEditExpense('${e.id}')">Edit</button>
+                <button class="btn sm danger" onclick="deleteExpense('${e.id}')">Delete</button>
+              </td>
+            </tr>`;
+          }).join('') : `<tr><td colspan="8" class="empty">No employee-paid expenses yet.</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderRevenue(){
+  const rows = [...data.revenue].sort((a,b)=>b.createdAt-a.createdAt);
+  return `
+    <div class="row" style="justify-content:space-between;">
+      <h1>Revenue</h1>
+      <button class="btn" onclick="openModal('revenueModal'); prepRevenueModal();">+ Add Revenue</button>
+    </div>
+    <div class="card" style="padding:0;overflow-x:auto;">
+      <table>
+        <thead><tr><th>Date</th><th>Type</th><th>Customer</th><th>Description</th><th>Amount</th><th></th></tr></thead>
+        <tbody>
+          ${rows.length ? rows.map(r=>`
+            <tr><td>${formatDate(r.date)}</td><td>${r.type}</td><td>${r.customer||'—'}</td><td>${r.description||'—'}</td><td class="green"><b>${formatBDT(r.amount)}</b></td>
+              <td class="row" style="gap:6px;flex-wrap:nowrap;">
+                <button class="btn sm outline" onclick="openEditRevenue('${r.id}')">Edit</button>
+                <button class="btn sm danger" onclick="deleteRevenue('${r.id}')">Delete</button>
+              </td>
+            </tr>
+          `).join('') : `<tr><td colspan="6" class="empty">No revenue recorded yet.</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+/* ---------------------------------------------------------
+   Financial Summary — Month-wise or Custom Date Range
+   --------------------------------------------------------- */
+let summaryState = { mode: 'month', month: new Date().getMonth(), year: new Date().getFullYear(), from: '', to: '', result: null };
+
+function monthOptionsHtml(){
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  return months.map((m,i)=>`<option value="${i}" ${i===summaryState.month?'selected':''}>${m}</option>`).join('');
+}
+function yearOptionsHtml(){
+  const current = new Date().getFullYear();
+  let opts = '';
+  for (let y = current-3; y <= current+1; y++){
+    opts += `<option value="${y}" ${y===summaryState.year?'selected':''}>${y}</option>`;
+  }
+  return opts;
+}
+
+function renderSummary(){
+  return `
+    <h1>Financial Summary</h1>
+    <p class="subtitle">Pick a month, or a custom date range, then generate the summary for that period.</p>
+
+    <div class="card">
+      <div class="row" style="margin-bottom:14px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;">
+          <input type="radio" name="summary_mode" value="month" ${summaryState.mode==='month'?'checked':''} onchange="setSummaryMode('month')"> Month Wise
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;">
+          <input type="radio" name="summary_mode" value="range" ${summaryState.mode==='range'?'checked':''} onchange="setSummaryMode('range')"> Custom Date Range
+        </label>
+      </div>
+
+      <div id="summary_month_fields" class="field-row ${summaryState.mode!=='month'?'hidden':''}">
+        <div class="field"><label>Month</label><select id="summary_month">${monthOptionsHtml()}</select></div>
+        <div class="field"><label>Year</label><select id="summary_year">${yearOptionsHtml()}</select></div>
+      </div>
+      <div id="summary_range_fields" class="field-row ${summaryState.mode!=='range'?'hidden':''}">
+        <div class="field"><label>From Date</label><input type="date" id="summary_from" value="${summaryState.from}"></div>
+        <div class="field"><label>To Date</label><input type="date" id="summary_to" value="${summaryState.to}"></div>
+      </div>
+
+      <button class="btn" onclick="generateSummary()">Generate Summary</button>
+    </div>
+
+    <div id="summary_results">${summaryState.result ? renderSummaryResults(summaryState.result) : ''}</div>
+  `;
+}
+
+function attachSummaryHandlers(){ /* inputs are read directly by id when Generate is clicked — nothing to wire up on load */ }
+
+function setSummaryMode(mode){
+  summaryState.mode = mode;
+  render();
+}
+
+function resolveSummaryRange(){
+  if (summaryState.mode === 'month'){
+    const month = parseInt(document.getElementById('summary_month').value);
+    const year = parseInt(document.getElementById('summary_year').value);
+    summaryState.month = month; summaryState.year = year;
+    const from = new Date(year, month, 1);
+    const to = new Date(year, month+1, 0, 23,59,59);
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    return { from, to, label: monthNames[month] + ' ' + year };
+  } else {
+    const fromStr = document.getElementById('summary_from').value;
+    const toStr = document.getElementById('summary_to').value;
+    if (!fromStr || !toStr){ alert('Please select both a From and To date.'); return null; }
+    summaryState.from = fromStr; summaryState.to = toStr;
+    const from = new Date(fromStr + 'T00:00:00');
+    const to = new Date(toStr + 'T23:59:59');
+    return { from, to, label: formatDate(fromStr) + ' to ' + formatDate(toStr) };
+  }
+}
+
+function computeSummaryForRange(from, to){
+  const inRange = d => { const t = new Date(d).getTime(); return t >= from.getTime() && t <= to.getTime(); };
+  const expenses = data.expenses.filter(e => inRange(e.date));
+  const revenue = data.revenue.filter(r => inRange(r.date));
+
+  const totalRevenue = revenue.reduce((s,r)=>s+Number(r.amount),0);
+  const totalExpenses = expenses.reduce((s,e)=>s+Number(e.amount),0);
+  const companyPaid = expenses.reduce((s,e)=>s+Number(e.companyPaid),0);
+  const employeePaid = expenses.reduce((s,e)=>s+Number(e.employeePaid),0);
+  const totalReimbursed = expenses.reduce((s,e)=>s+Number(e.reimbursedAmount),0);
+  const employeeOutstanding = expenses.reduce((s,e)=>s+Number(e.employeeOutstanding),0);
+  const vendorOutstanding = expenses.reduce((s,e)=>s+Number(e.companyOutstanding),0);
+
+  const byCategory = {};
+  expenses.forEach(e => {
+    if (!byCategory[e.category]) byCategory[e.category] = { count:0, amount:0, companyPaid:0, employeePaid:0, reimbursed:0, outstanding:0 };
+    const c = byCategory[e.category];
+    c.count++; c.amount += Number(e.amount); c.companyPaid += Number(e.companyPaid);
+    c.employeePaid += Number(e.employeePaid); c.reimbursed += Number(e.reimbursedAmount);
+    c.outstanding += Number(e.companyOutstanding) + Number(e.employeeOutstanding);
+  });
+
+  const byEmployee = {};
+  expenses.filter(e=>e.paidBy==='EMPLOYEE').forEach(e=>{
+    if (!byEmployee[e.employee]) byEmployee[e.employee] = { paid:0, reimbursed:0, outstanding:0 };
+    byEmployee[e.employee].paid += Number(e.employeePaid);
+    byEmployee[e.employee].reimbursed += Number(e.reimbursedAmount);
+    byEmployee[e.employee].outstanding += Number(e.employeeOutstanding);
+  });
+
+  const byRevenueType = {};
+  revenue.forEach(r=>{
+    if (!byRevenueType[r.type]) byRevenueType[r.type] = { count:0, amount:0 };
+    byRevenueType[r.type].count++; byRevenueType[r.type].amount += Number(r.amount);
+  });
+
+  const reimbursementRows = expenses.filter(e=>e.paidBy==='EMPLOYEE');
+  const reimbursementSummary = {
+    totalSubmitted: reimbursementRows.reduce((s,e)=>s+Number(e.employeePaid),0),
+    totalReimbursed: reimbursementRows.reduce((s,e)=>s+Number(e.reimbursedAmount),0),
+    totalOutstanding: reimbursementRows.reduce((s,e)=>s+Number(e.employeeOutstanding),0),
+    pendingCount: reimbursementRows.filter(e=>e.employeeOutstanding>0).length,
+    reimbursedCount: reimbursementRows.filter(e=>e.employeeOutstanding<=0).length,
+  };
+
+  return {
+    from, to, expenses, revenue,
+    totalRevenue, totalExpenses, companyPaid, employeePaid, totalReimbursed,
+    employeeOutstanding, vendorOutstanding, netIncome: totalRevenue - totalExpenses,
+    byCategory, byEmployee, byRevenueType, reimbursementSummary,
+  };
+}
+
+function generateSummary(){
+  const range = resolveSummaryRange();
+  if (!range) return;
+  summaryState.result = { ...computeSummaryForRange(range.from, range.to), label: range.label };
+  document.getElementById('summary_results').innerHTML = renderSummaryResults(summaryState.result);
+}
+
+function renderSummaryResults(r){
+  const catRows = Object.entries(r.byCategory);
+  const empRows = Object.entries(r.byEmployee);
+  const revRows = Object.entries(r.byRevenueType);
+
+  return `
+    <div class="card" style="border-color:var(--purple);">
+      <div class="row" style="justify-content:space-between;">
+        <h3 style="margin:0;">Executive Summary — ${r.label}</h3>
+        <div class="row">
+          <button class="btn sm" onclick="downloadSummary()">⬇ Download Summary</button>
+          <button class="btn sm secondary" onclick="window.print()">🖨 Print</button>
+        </div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi positive"><div class="label">Total Revenue</div><div class="value">${formatBDT(r.totalRevenue)}</div></div>
+        <div class="kpi negative"><div class="label">Total Expenses</div><div class="value">${formatBDT(r.totalExpenses)}</div></div>
+        <div class="kpi"><div class="label">Company Paid</div><div class="value">${formatBDT(r.companyPaid)}</div></div>
+        <div class="kpi"><div class="label">Employee Paid</div><div class="value">${formatBDT(r.employeePaid)}</div></div>
+        <div class="kpi"><div class="label">Total Reimbursed</div><div class="value">${formatBDT(r.totalReimbursed)}</div></div>
+        <div class="kpi warning"><div class="label">Employee Outstanding</div><div class="value">${formatBDT(r.employeeOutstanding)}</div></div>
+        <div class="kpi warning"><div class="label">Vendor Outstanding</div><div class="value">${formatBDT(r.vendorOutstanding)}</div></div>
+        <div class="kpi ${r.netIncome>=0?'positive':'negative'}"><div class="label">Net Income</div><div class="value">${formatBDT(r.netIncome)}</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Expense Summary by Category</h3>
+      <table><thead><tr><th>Category</th><th># of Expenses</th><th>Total</th><th>Company Paid</th><th>Employee Paid</th><th>Reimbursed</th><th>Outstanding</th></tr></thead>
+      <tbody>
+        ${catRows.length ? catRows.map(([name,c])=>`<tr><td>${name}</td><td>${c.count}</td><td><b>${formatBDT(c.amount)}</b></td><td>${formatBDT(c.companyPaid)}</td><td>${formatBDT(c.employeePaid)}</td><td>${formatBDT(c.reimbursed)}</td><td class="amber">${formatBDT(c.outstanding)}</td></tr>`).join('') : `<tr><td colspan="7" class="empty">No expenses in this period.</td></tr>`}
+      </tbody></table>
+    </div>
+
+    <div class="card">
+      <h3>Employee Expense Summary</h3>
+      <table><thead><tr><th>Employee</th><th>Personally Paid</th><th>Reimbursed</th><th>Outstanding</th></tr></thead>
+      <tbody>
+        ${empRows.length ? empRows.map(([name,e])=>`<tr><td>${name}</td><td>${formatBDT(e.paid)}</td><td class="green">${formatBDT(e.reimbursed)}</td><td class="amber">${formatBDT(e.outstanding)}</td></tr>`).join('') : `<tr><td colspan="4" class="empty">No employee-paid expenses in this period.</td></tr>`}
+      </tbody></table>
+    </div>
+
+    <div class="card">
+      <h3>Reimbursement Summary</h3>
+      <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);">
+        <div class="kpi"><div class="label">Total Submitted</div><div class="value">${formatBDT(r.reimbursementSummary.totalSubmitted)}</div></div>
+        <div class="kpi"><div class="label">Total Reimbursed</div><div class="value">${formatBDT(r.reimbursementSummary.totalReimbursed)}</div></div>
+        <div class="kpi warning"><div class="label">Total Outstanding</div><div class="value">${formatBDT(r.reimbursementSummary.totalOutstanding)}</div></div>
+        <div class="kpi"><div class="label">Pending / Reimbursed</div><div class="value" style="font-size:15px;">${r.reimbursementSummary.pendingCount} / ${r.reimbursementSummary.reimbursedCount}</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Revenue Summary</h3>
+      <table><thead><tr><th>Revenue Type</th><th># of Transactions</th><th>Total Amount</th></tr></thead>
+      <tbody>
+        ${revRows.length ? revRows.map(([name,rr])=>`<tr><td>${name}</td><td>${rr.count}</td><td class="green"><b>${formatBDT(rr.amount)}</b></td></tr>`).join('') : `<tr><td colspan="3" class="empty">No revenue in this period.</td></tr>`}
+      </tbody></table>
+    </div>
+
+    <div class="card">
+      <h3>Profit &amp; Loss</h3>
+      <table><tbody>
+        <tr><td>Total Revenue</td><td style="text-align:right;" class="green"><b>${formatBDT(r.totalRevenue)}</b></td></tr>
+        <tr><td>Total Expenses</td><td style="text-align:right;" class="red"><b>${formatBDT(r.totalExpenses)}</b></td></tr>
+        <tr><td><b>Net Income</b></td><td style="text-align:right;" class="${r.netIncome>=0?'green':'red'}"><b>${formatBDT(r.netIncome)}</b></td></tr>
+      </tbody></table>
+    </div>
+  `;
+}
+
+function buildSummaryReportHtml(r){
+  const catRows = Object.entries(r.byCategory);
+  const empRows = Object.entries(r.byEmployee);
+  const revRows = Object.entries(r.byRevenueType);
+  const generatedAt = new Date().toLocaleString('en-GB');
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>NidusLab Financial Summary — ${r.label}</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;color:#0A0A0A;max-width:800px;margin:30px auto;padding:0 20px;}
+    h1{color:#7C3AED;margin-bottom:0;}
+    .meta{color:#666;font-size:13px;margin-bottom:20px;}
+    h2{font-size:16px;border-bottom:2px solid #7C3AED;padding-bottom:4px;margin-top:30px;}
+    table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px;}
+    th{background:#F5F5F5;text-align:left;padding:6px 8px;}
+    td{padding:6px 8px;border-bottom:1px solid #eee;}
+    .kpis{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;}
+    .kpi{border:1px solid #eee;border-radius:8px;padding:10px 14px;min-width:150px;}
+    .kpi .l{font-size:11px;color:#888;text-transform:uppercase;}
+    .kpi .v{font-size:18px;font-weight:bold;}
+    .footer{margin-top:40px;font-size:11px;color:#999;text-align:center;}
+  </style></head><body>
+    <h1>NidusLab</h1>
+    <div class="meta">Financial Summary Report &mdash; Report Period: <b>${r.label}</b><br>Generated: ${generatedAt}</div>
+
+    <h2>1. Executive Summary</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="l">Total Revenue</div><div class="v">${formatBDT(r.totalRevenue)}</div></div>
+      <div class="kpi"><div class="l">Total Expenses</div><div class="v">${formatBDT(r.totalExpenses)}</div></div>
+      <div class="kpi"><div class="l">Company Paid</div><div class="v">${formatBDT(r.companyPaid)}</div></div>
+      <div class="kpi"><div class="l">Employee Paid</div><div class="v">${formatBDT(r.employeePaid)}</div></div>
+      <div class="kpi"><div class="l">Total Reimbursed</div><div class="v">${formatBDT(r.totalReimbursed)}</div></div>
+      <div class="kpi"><div class="l">Employee Outstanding</div><div class="v">${formatBDT(r.employeeOutstanding)}</div></div>
+      <div class="kpi"><div class="l">Vendor Outstanding</div><div class="v">${formatBDT(r.vendorOutstanding)}</div></div>
+      <div class="kpi"><div class="l">Net Income</div><div class="v">${formatBDT(r.netIncome)}</div></div>
+    </div>
+
+    <h2>2. Expense Summary by Category</h2>
+    <table><thead><tr><th>Category</th><th># Expenses</th><th>Total</th><th>Company Paid</th><th>Employee Paid</th><th>Reimbursed</th><th>Outstanding</th></tr></thead>
+    <tbody>${catRows.length ? catRows.map(([name,c])=>`<tr><td>${name}</td><td>${c.count}</td><td>${formatBDT(c.amount)}</td><td>${formatBDT(c.companyPaid)}</td><td>${formatBDT(c.employeePaid)}</td><td>${formatBDT(c.reimbursed)}</td><td>${formatBDT(c.outstanding)}</td></tr>`).join('') : '<tr><td colspan="7">No expenses in this period.</td></tr>'}</tbody></table>
+
+    <h2>3. Employee Expense Summary</h2>
+    <table><thead><tr><th>Employee</th><th>Personally Paid</th><th>Reimbursed</th><th>Outstanding</th></tr></thead>
+    <tbody>${empRows.length ? empRows.map(([name,e])=>`<tr><td>${name}</td><td>${formatBDT(e.paid)}</td><td>${formatBDT(e.reimbursed)}</td><td>${formatBDT(e.outstanding)}</td></tr>`).join('') : '<tr><td colspan="4">No employee-paid expenses in this period.</td></tr>'}</tbody></table>
+
+    <h2>4. Reimbursement Summary</h2>
+    <table><tbody>
+      <tr><td>Total Submitted</td><td>${formatBDT(r.reimbursementSummary.totalSubmitted)}</td></tr>
+      <tr><td>Total Reimbursed</td><td>${formatBDT(r.reimbursementSummary.totalReimbursed)}</td></tr>
+      <tr><td>Total Outstanding</td><td>${formatBDT(r.reimbursementSummary.totalOutstanding)}</td></tr>
+      <tr><td>Pending Requests</td><td>${r.reimbursementSummary.pendingCount}</td></tr>
+      <tr><td>Fully Reimbursed</td><td>${r.reimbursementSummary.reimbursedCount}</td></tr>
+    </tbody></table>
+
+    <h2>5. Revenue Summary</h2>
+    <table><thead><tr><th>Revenue Type</th><th># Transactions</th><th>Total Amount</th></tr></thead>
+    <tbody>${revRows.length ? revRows.map(([name,rr])=>`<tr><td>${name}</td><td>${rr.count}</td><td>${formatBDT(rr.amount)}</td></tr>`).join('') : '<tr><td colspan="3">No revenue in this period.</td></tr>'}</tbody></table>
+
+    <h2>6. Profit &amp; Loss</h2>
+    <table><tbody>
+      <tr><td>Total Revenue</td><td>${formatBDT(r.totalRevenue)}</td></tr>
+      <tr><td>Total Expenses</td><td>${formatBDT(r.totalExpenses)}</td></tr>
+      <tr><td><b>Net Income</b></td><td><b>${formatBDT(r.netIncome)}</b></td></tr>
+    </tbody></table>
+
+    <div class="footer">Generated by the NidusLab Finance &amp; Accounting local demo. Prepared By: __________ &nbsp;&nbsp; Approved By: __________</div>
+  </body></html>`;
+}
+
+function downloadSummary(){
+  if (!summaryState.result) return;
+  const html = buildSummaryReportHtml(summaryState.result);
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const safeLabel = summaryState.result.label.replace(/[^a-z0-9]+/gi,'_');
+  a.href = url;
+  a.download = `NidusLab-Financial-Summary-${safeLabel}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function renderAccounts(){
+  const groups = ['ASSET','LIABILITY','EQUITY','REVENUE','EXPENSE'];
+  const titles = {ASSET:'Assets', LIABILITY:'Liabilities', EQUITY:'Equity', REVENUE:'Revenue', EXPENSE:'Expenses'};
+  return `
+    <h1>Chart of Accounts</h1>
+    <div class="card">
+      ${groups.map(g => `
+        <div class="accounts-section-title">${titles[g]}</div>
+        <table style="margin-bottom:10px;">
+          <tbody>
+            ${CHART_OF_ACCOUNTS.filter(a=>a.type===g).map(a=>`<tr><td style="width:70px;"><b>${a.code}</b></td><td>${a.name}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      `).join('')}
+    </div>
+  `;
+}
+
+/* ---------------------------------------------------------
+   Modal helpers
+   --------------------------------------------------------- */
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+
+function prepExpenseModal(){
+  document.getElementById('exp_editing_id').value = '';
+  document.getElementById('expenseModalTitle').textContent = 'Add Expense';
+  document.getElementById('expenseSaveBtn').textContent = 'Save Expense';
+  document.getElementById('exp_date').value = todayStr();
+  const cat = document.getElementById('exp_category');
+  cat.innerHTML = EXPENSE_CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('') + `<option value="OTHERS">Others</option>`;
+  const acc = document.getElementById('exp_account');
+  acc.innerHTML = CHART_OF_ACCOUNTS.filter(a=>a.type==='EXPENSE').map(a=>`<option value="${a.code}">${a.name}</option>`).join('') + `<option value="OTHERS">Others</option>`;
+  refreshEmployeeDropdown();
+  document.getElementById('exp_description').value='';
+  document.getElementById('exp_vendor').value='';
+  document.getElementById('exp_amount').value='';
+  document.getElementById('exp_notes').value='';
+  document.getElementById('exp_category_other').value='';
+  document.getElementById('exp_account_other').value='';
+  document.getElementById('exp_photo_preview').classList.add('hidden');
+  document.getElementById('exp_photo_filename').classList.add('hidden');
+  document.getElementById('exp_photo').value = '';
+  document.getElementById('exp_employee_field').classList.add('hidden');
+  document.getElementById('exp_category_other_field').classList.add('hidden');
+  document.getElementById('exp_account_other_field').classList.add('hidden');
+  document.getElementById('exp_others_photo_field').classList.add('hidden');
+  document.getElementById('exp_others_photo_preview').classList.add('hidden');
+  document.querySelector('input[name="exp_paidby"][value="COMPANY"]').checked = true;
+  document.getElementById('exp_calc_preview').innerHTML='';
+  window._expPhotoData = null;
+  window._expPhotoName = null;
+  window._expOthersPhotoData = null;
+}
+
+function openEditExpense(id){
+  const e = data.expenses.find(x=>x.id===id);
+  if (!e) return;
+  prepExpenseModal(); // reset to clean state first, then overlay existing values
+
+  document.getElementById('exp_editing_id').value = id;
+  document.getElementById('expenseModalTitle').textContent = 'Edit Expense';
+  document.getElementById('expenseSaveBtn').textContent = 'Save Changes';
+
+  document.getElementById('exp_date').value = e.date;
+  document.getElementById('exp_description').value = e.description;
+  document.getElementById('exp_vendor').value = e.vendor || '';
+  document.getElementById('exp_amount').value = e.amount;
+  document.getElementById('exp_notes').value = e.notes || '';
+  document.getElementById('exp_method').value = e.paymentMethod;
+
+  // Category (handle custom "Others" categories not in the fixed list)
+  const catSelect = document.getElementById('exp_category');
+  if ([...catSelect.options].some(o=>o.value===e.category)) {
+    catSelect.value = e.category;
+  } else {
+    catSelect.value = 'OTHERS';
+    document.getElementById('exp_category_other').value = e.category;
+    document.getElementById('exp_category_other_field').classList.remove('hidden');
+  }
+
+  // Account (custom "Others" account uses accountLabel)
+  const accSelect = document.getElementById('exp_account');
+  if (e.accountLabel) {
+    accSelect.value = 'OTHERS';
+    document.getElementById('exp_account_other').value = e.accountLabel;
+    document.getElementById('exp_account_other_field').classList.remove('hidden');
+  } else {
+    accSelect.value = e.accountCode;
+  }
+  syncOthersPhotoVisibility();
+
+  // Paid by / employee
+  document.querySelector(`input[name="exp_paidby"][value="${e.paidBy}"]`).checked = true;
+  if (e.paidBy === 'EMPLOYEE') {
+    document.getElementById('exp_employee_field').classList.remove('hidden');
+    refreshEmployeeDropdown(e.employee);
+  }
+
+  // Existing photos/files (kept unless replaced)
+  if (e.photo) {
+    const filenameEl = document.getElementById('exp_photo_filename');
+    if (e.photo.startsWith('data:image')) {
+      document.getElementById('exp_photo_preview').src = e.photo;
+      document.getElementById('exp_photo_preview').classList.remove('hidden');
+    } else {
+      filenameEl.textContent = 'Attached file: ' + (e.photoName || 'file');
+      filenameEl.classList.remove('hidden');
+    }
+    window._expPhotoData = e.photo;
+    window._expPhotoName = e.photoName || null;
+  }
+  if (e.othersPhoto) {
+    document.getElementById('exp_others_photo_preview').src = e.othersPhoto;
+    document.getElementById('exp_others_photo_preview').classList.remove('hidden');
+    window._expOthersPhotoData = e.othersPhoto;
+  }
+
+  updateExpensePreview();
+  openModal('expenseModal');
+}
+
+function refreshEmployeeDropdown(selectValue){
+  const emp = document.getElementById('exp_employee');
+  emp.innerHTML = data.employees.map(e=>`<option value="${e}">${e}</option>`).join('');
+  if (selectValue) emp.value = selectValue;
+}
+function addEmployeePrompt(){
+  const name = prompt('Enter new employee name:');
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim();
+  if (data.employees.includes(trimmed)){ alert('That employee already exists.'); return; }
+  data.employees.push(trimmed);
+  saveData();
+  refreshEmployeeDropdown(trimmed);
+}
+function removeEmployeePrompt(){
+  const emp = document.getElementById('exp_employee');
+  const selected = emp.value;
+  if (!selected) return;
+  if (!confirm(`Remove "${selected}" from the employee list? (Past expenses already recorded under this name will be unaffected.)`)) return;
+  data.employees = data.employees.filter(e=>e!==selected);
+  saveData();
+  refreshEmployeeDropdown();
+}
+function toggleCategoryOthers(){
+  const isOthers = document.getElementById('exp_category').value === 'OTHERS';
+  document.getElementById('exp_category_other_field').classList.toggle('hidden', !isOthers);
+  syncOthersPhotoVisibility();
+}
+function toggleAccountOthers(){
+  const isOthers = document.getElementById('exp_account').value === 'OTHERS';
+  document.getElementById('exp_account_other_field').classList.toggle('hidden', !isOthers);
+  syncOthersPhotoVisibility();
+}
+function syncOthersPhotoVisibility(){
+  const anyOthers = document.getElementById('exp_category').value === 'OTHERS' || document.getElementById('exp_account').value === 'OTHERS';
+  document.getElementById('exp_others_photo_field').classList.toggle('hidden', !anyOthers);
+}
+function previewOthersPhoto(e){
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(evt){
+    window._expOthersPhotoData = evt.target.result;
+    const img = document.getElementById('exp_others_photo_preview');
+    img.src = evt.target.result;
+    img.classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
+}
+function previewExpensePhoto(e){
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(evt){
+    window._expPhotoData = evt.target.result;
+    window._expPhotoName = file.name;
+    const img = document.getElementById('exp_photo_preview');
+    const filenameEl = document.getElementById('exp_photo_filename');
+    if (file.type.startsWith('image/')) {
+      img.src = evt.target.result;
+      img.classList.remove('hidden');
+      filenameEl.classList.add('hidden');
+    } else {
+      img.classList.add('hidden');
+      filenameEl.textContent = 'Attached file: ' + file.name;
+      filenameEl.classList.remove('hidden');
+    }
+  };
+  reader.readAsDataURL(file);
+}
+function toggleEmployeeField(){
+  const paidBy = document.querySelector('input[name="exp_paidby"]:checked').value;
+  document.getElementById('exp_employee_field').classList.toggle('hidden', paidBy !== 'EMPLOYEE');
+  updateExpensePreview();
+}
+function updateExpensePreview(){
+  const amount = Number(document.getElementById('exp_amount').value)||0;
+  const paidBy = document.querySelector('input[name="exp_paidby"]:checked').value;
+  const companyPaid = paidBy==='COMPANY'?amount:0;
+  const employeePaid = paidBy==='EMPLOYEE'?amount:0;
+  const companyOutstanding = Math.max(amount-companyPaid-employeePaid,0);
+  const employeeOutstanding = Math.max(employeePaid-0,0);
+  document.getElementById('exp_calc_preview').innerHTML = amount>0 ? `
+    <div><b>Automatically calculated:</b></div>
+    <div>Vendor/Company Outstanding: <b>${formatBDT(companyOutstanding)}</b></div>
+    <div>Employee Outstanding: <b>${formatBDT(employeeOutstanding)}</b></div>
+  ` : '';
+}
+
+function saveExpense(){
+  const date = document.getElementById('exp_date').value;
+  let category = document.getElementById('exp_category').value;
+  const accountCode = document.getElementById('exp_account').value;
+  let accountLabel = null;
+  const description = document.getElementById('exp_description').value.trim();
+  const vendor = document.getElementById('exp_vendor').value.trim();
+  const amount = Number(document.getElementById('exp_amount').value);
+  const paymentMethod = document.getElementById('exp_method').value;
+  const paidBy = document.querySelector('input[name="exp_paidby"]:checked').value;
+  const employee = document.getElementById('exp_employee').value;
+  const notes = document.getElementById('exp_notes').value.trim();
+
+  if (category === 'OTHERS'){
+    const custom = document.getElementById('exp_category_other').value.trim();
+    if (!custom){ alert('Please specify the "Others" category.'); return; }
+    category = custom;
+  }
+  if (accountCode === 'OTHERS'){
+    const custom = document.getElementById('exp_account_other').value.trim();
+    if (!custom){ alert('Please specify the "Others" account.'); return; }
+    accountLabel = custom;
+  }
+  if (!date || !amount || amount<=0){
+    alert('Please fill in date and a valid amount.');
+    return;
+  }
+  if (paidBy==='EMPLOYEE' && !employee){
+    alert('Please select which employee paid.');
+    return;
+  }
+
+  try {
+    const editingId = document.getElementById('exp_editing_id').value;
+    if (editingId) {
+      updateExpense(editingId, { date, category, accountCode, accountLabel, description, amount, paidBy, paymentMethod, employee, vendor, notes, photo: window._expPhotoData||null, photoName: window._expPhotoName||null, othersPhoto: window._expOthersPhotoData||null });
+    } else {
+      const expense = makeExpense({ date, category, accountCode, accountLabel, description, amount, paidBy, paymentMethod, employee, vendor, notes, photo: window._expPhotoData||null, photoName: window._expPhotoName||null, othersPhoto: window._expOthersPhotoData||null });
+      data.expenses.push(expense);
+    }
+    saveData();
+    closeModal('expenseModal');
+    render();
+  } catch(err){
+    alert(err.message);
+  }
+}
+
+/**
+ * Updates an existing expense in place. Preserves any reimbursement
+ * payments already recorded — editing an expense never erases payment
+ * history, it only corrects the underlying record (matching the intent
+ * of the Edit action: "fix a mistake", not "undo what's already happened").
+ */
+function updateExpense(id, params){
+  const idx = data.expenses.findIndex(x=>x.id===id);
+  if (idx === -1) throw new Error('Expense not found.');
+  const existing = data.expenses[idx];
+
+  const amount = Number(params.amount);
+  const companyPaid = params.paidBy === 'COMPANY' ? amount : 0;
+  let employeePaid = params.paidBy === 'EMPLOYEE' ? amount : 0;
+  let reimbursedAmount = Number(existing.reimbursedAmount) || 0;
+
+  if (reimbursedAmount > employeePaid) {
+    alert(`Note: this expense already has ${formatBDT(reimbursedAmount)} reimbursed. The reimbursed amount has been kept as-is; please double-check the new amount/Paid-By is correct.`);
+    employeePaid = Math.max(employeePaid, reimbursedAmount); // never let paid-so-far exceed the recorded amount
+  }
+
+  const companyOutstanding = Math.max(amount - companyPaid - employeePaid, 0);
+  const employeeOutstanding = Math.max(employeePaid - reimbursedAmount, 0);
+
+  const journalAccountCode = params.accountCode === 'OTHERS' ? '5150' : params.accountCode;
+  const cashAccountCode = cashAccountForMethod(params.paymentMethod);
+  const newFirstTwoLines = buildExpenseJournal({ accountCode: journalAccountCode, cashAccountCode, amount, paidBy: params.paidBy });
+  assertBalanced(newFirstTwoLines);
+  const preservedReimbursementLines = (existing.journal || []).slice(2); // keep any reimbursement postings made after creation
+
+  data.expenses[idx] = {
+    ...existing,
+    date: params.date, category: params.category, accountCode: journalAccountCode,
+    accountLabel: params.accountLabel || null, description: params.description,
+    vendor: params.vendor, amount, paidBy: params.paidBy, paymentMethod: params.paymentMethod,
+    employee: params.paidBy === 'EMPLOYEE' ? params.employee : null,
+    companyPaid, employeePaid, reimbursedAmount, companyOutstanding, employeeOutstanding,
+    notes: params.notes, photo: params.photo, photoName: params.photo ? (params.photoName || null) : null, othersPhoto: params.othersPhoto,
+    journal: [...newFirstTwoLines, ...preservedReimbursementLines],
+  };
+}
+
+function deleteExpense(id){
+  const e = data.expenses.find(x=>x.id===id);
+  if (!e) return;
+  const warn = e.reimbursedAmount > 0
+    ? ` This expense has ${formatBDT(e.reimbursedAmount)} already reimbursed — deleting it will remove that history too.`
+    : '';
+  if (!confirm(`Delete this expense — "${e.description || e.category}" (${formatBDT(e.amount)})? This cannot be undone.${warn}`)) return;
+  data.expenses = data.expenses.filter(x=>x.id!==id);
+  saveData();
+  render();
+}
+
+function deleteRevenue(id){
+  const r = data.revenue.find(x=>x.id===id);
+  if (!r) return;
+  if (!confirm(`Delete this revenue entry — "${r.description||r.type}" (${formatBDT(r.amount)})? This cannot be undone.`)) return;
+  data.revenue = data.revenue.filter(x=>x.id!==id);
+  saveData();
+  render();
+}
+
+function prepRevenueModal(){
+  document.getElementById('rev_editing_id').value = '';
+  document.getElementById('revenueModalTitle').textContent = 'Add Revenue';
+  document.getElementById('revenueSaveBtn').textContent = 'Save Revenue';
+  document.getElementById('rev_date').value = todayStr();
+  document.getElementById('rev_customer').value='';
+  document.getElementById('rev_description').value='';
+  document.getElementById('rev_amount').value='';
+  document.getElementById('rev_type').value = 'Sales Revenue';
+  document.getElementById('rev_method').value = 'CASH';
+}
+function openEditRevenue(id){
+  const r = data.revenue.find(x=>x.id===id);
+  if (!r) return;
+  prepRevenueModal();
+  document.getElementById('rev_editing_id').value = id;
+  document.getElementById('revenueModalTitle').textContent = 'Edit Revenue';
+  document.getElementById('revenueSaveBtn').textContent = 'Save Changes';
+  document.getElementById('rev_date').value = r.date;
+  document.getElementById('rev_type').value = r.type;
+  document.getElementById('rev_customer').value = r.customer || '';
+  document.getElementById('rev_description').value = r.description || '';
+  document.getElementById('rev_amount').value = r.amount;
+  document.getElementById('rev_method').value = r.paymentMethod;
+  openModal('revenueModal');
+}
+function saveRevenue(){
+  const date = document.getElementById('rev_date').value;
+  const type = document.getElementById('rev_type').value;
+  const customer = document.getElementById('rev_customer').value.trim();
+  const description = document.getElementById('rev_description').value.trim();
+  const amount = Number(document.getElementById('rev_amount').value);
+  const paymentMethod = document.getElementById('rev_method').value;
+  if (!date || !amount || amount<=0){ alert('Please fill in date and a valid amount.'); return; }
+
+  const editingId = document.getElementById('rev_editing_id').value;
+  if (editingId) {
+    const idx = data.revenue.findIndex(x=>x.id===editingId);
+    if (idx !== -1) {
+      data.revenue[idx] = { ...data.revenue[idx], date, type, customer, description, amount, paymentMethod };
+    }
+  } else {
+    data.revenue.push({ id: uid(), date, type, customer, description, amount, paymentMethod, createdAt: Date.now() });
+  }
+  saveData();
+  closeModal('revenueModal');
+  render();
+}
+
+function showExpenseDetail(id){
+  const e = data.expenses.find(x=>x.id===id);
+  if (!e) return;
+  const acc = accountByCode(e.accountCode);
+  document.getElementById('detailContent').innerHTML = `
+    <h2 style="margin-bottom:2px;">${e.description || e.category}</h2>
+    <p class="subtitle">${e.category} · ${formatDate(e.date)}</p>
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
+      <div class="kpi"><div class="label">Amount</div><div class="value">${formatBDT(e.amount)}</div></div>
+      <div class="kpi"><div class="label">Company Paid</div><div class="value">${formatBDT(e.companyPaid)}</div></div>
+      <div class="kpi"><div class="label">Employee Paid</div><div class="value">${formatBDT(e.employeePaid)}</div></div>
+      <div class="kpi"><div class="label">Reimbursed</div><div class="value">${formatBDT(e.reimbursedAmount)}</div></div>
+      <div class="kpi warning"><div class="label">Company Outstanding</div><div class="value">${formatBDT(e.companyOutstanding)}</div></div>
+      <div class="kpi warning"><div class="label">Employee Outstanding</div><div class="value">${formatBDT(e.employeeOutstanding)}</div></div>
+    </div>
+    ${e.photo ? (e.photo.startsWith('data:image')
+        ? `<div class="card"><h3>Photo</h3><img src="${e.photo}" style="max-height:200px;border-radius:8px;"></div>`
+        : `<div class="card"><h3>Attached File</h3><a href="${e.photo}" download="${e.photoName||'attachment'}">${e.photoName||'Download attachment'}</a></div>`
+      ) : ''}
+    ${e.othersPhoto ? `<div class="card"><h3>Supporting Photo ("Others")</h3><img src="${e.othersPhoto}" style="max-height:200px;border-radius:8px;"></div>` : ''}
+    <div class="card">
+      <h3>Details</h3>
+      <div style="font-size:13px;line-height:1.9;">
+        <div><span class="muted">Vendor:</span> ${e.vendor||'—'}</div>
+        <div><span class="muted">Paid By:</span> ${e.paidBy==='EMPLOYEE' ? e.employee : 'Company'}</div>
+        <div><span class="muted">Payment Method:</span> ${e.paymentMethod.replace('_',' ')}</div>
+        <div><span class="muted">Expense Account:</span> ${e.accountLabel ? e.accountLabel + ' (Others)' : acc.name}</div>
+        ${e.notes ? `<div><span class="muted">Notes:</span> ${e.notes}</div>` : ''}
+      </div>
+    </div>
+    <div class="card">
+      <h3>Journal Entry (Double-Entry)</h3>
+      <table class="journal-table">
+        <thead><tr><th>Account</th><th style="text-align:right;">Debit</th><th style="text-align:right;">Credit</th></tr></thead>
+        <tbody>
+          ${e.journal.map(l=>{
+            const a = accountByCode(l.accountCode);
+            const label = (e.accountLabel && a.code === e.accountCode) ? e.accountLabel + ' (Others)' : a.name;
+            return `<tr><td>${label}</td><td style="text-align:right;">${l.debit>0?formatBDT(l.debit):''}</td><td style="text-align:right;">${l.credit>0?formatBDT(l.credit):''}</td></tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  openModal('detailModal');
+}
+
+function openReimburseModal(expenseId){
+  const e = data.expenses.find(x=>x.id===expenseId);
+  document.getElementById('reimburse_expense_id').value = expenseId;
+  document.getElementById('reimburse_amount').value = e.employeeOutstanding;
+  document.getElementById('reimburse_amount').max = e.employeeOutstanding;
+  openModal('reimburseModal');
+}
+function saveReimbursementPayment(){
+  const id = document.getElementById('reimburse_expense_id').value;
+  const amount = Number(document.getElementById('reimburse_amount').value);
+  const e = data.expenses.find(x=>x.id===id);
+  if (!e) return;
+  if (amount<=0 || amount>e.employeeOutstanding){
+    alert('Reimbursement amount must be greater than 0 and cannot exceed the outstanding amount (' + formatBDT(e.employeeOutstanding) + ').');
+    return;
+  }
+  // Update expense: reimbursedAmount up, employeeOutstanding down
+  e.reimbursedAmount = Number(e.reimbursedAmount) + amount;
+  e.employeeOutstanding = Math.max(e.employeePaid - e.reimbursedAmount, 0);
+  if (!e.reimbursementPayments) e.reimbursementPayments = [];
+  e.reimbursementPayments.push({ date: todayStr(), amount, method: document.getElementById('reimburse_method').value, createdAt: Date.now() });
+
+  // Post the reimbursement journal entry: Debit Employee Reimbursement Payable, Credit Cash/Bank
+  const cashCode = cashAccountForMethod(document.getElementById('reimburse_method').value);
+  const journalLines = [
+    { accountCode: '2010', debit: amount, credit: 0 },
+    { accountCode: cashCode, debit: 0, credit: amount },
+  ];
+  assertBalanced(journalLines);
+  e.journal.push(...journalLines);
+
+  saveData();
+  closeModal('reimburseModal');
+  render();
+}
+
+/* ---------------------------------------------------------
+   Responsive topbar handling
+   --------------------------------------------------------- */
+function handleResize(){
+  const isMobile = window.innerWidth <= 800;
+  document.getElementById('mobileTopbar').style.display = isMobile ? 'flex' : 'none';
+  document.getElementById('desktopTopbar').style.display = isMobile ? 'none' : 'flex';
+}
+window.addEventListener('resize', handleResize);
+handleResize();
+
+/* ---------------------------------------------------------
+   App bootstrap — show auth screen unless already logged in
+   --------------------------------------------------------- */
+document.querySelectorAll('.brand-logo').forEach(img => { img.src = LOGO_DATA_URI; });
+loadUsers(); // ensure at least the seeded admin user exists
+if (currentUser()) {
+  enterApp();
+} else {
+  document.getElementById('authScreen').style.display = 'flex';
+}
+
+</script>
+</body>
+</html>

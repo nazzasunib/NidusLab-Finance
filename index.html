@@ -254,7 +254,7 @@
     </div>
     <div class="topbar desktop-only" id="desktopTopbar">
       <div class="date" id="topDate"></div>
-      <div class="who" style="display:flex;align-items:center;gap:12px;">
+      <div class="who" style="display:flweex;align-items:center;gap:12px;">
         <div style="text-align:right;">
           <div id="topbar_name">—</div>
           <div class="role" id="topbar_role">—</div>
@@ -1227,19 +1227,58 @@ function buildSummaryReportHtml(r){
   const empRows = Object.entries(r.byEmployee);
   const revRows = Object.entries(r.byRevenueType);
   const generatedAt = new Date().toLocaleString('en-GB');
+
+  const catDetailHtml = (name) => {
+    const items = r.expenses.filter(e => e.category === name);
+    if (!items.length) return '';
+    return items.map(e => {
+      const imgSrc = (e.photo && e.photo.startsWith('data:image')) ? e.photo : (e.othersPhoto || null);
+      const fileLink = (e.photo && !e.photo.startsWith('data:image')) ? e.photo : null;
+      return `
+        <div class="det-item">
+          <div class="det-row"><span class="det-date">${formatDate(e.date)}</span><span class="det-amt">${formatBDT(e.amount)}</span></div>
+          <div class="det-desc">${e.description || '(no description)'}</div>
+          ${imgSrc ? `<img src="${imgSrc}" class="det-photo">` : ''}
+          ${fileLink ? `<a href="${fileLink}" download="${e.photoName || 'attachment'}" class="det-file">📎 ${e.photoName || 'Download attachment'}</a>` : ''}
+        </div>`;
+    }).join('');
+  };
+
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>NidusLab Financial Summary — ${r.label}</title>
   <style>
     body{font-family:Arial,Helvetica,sans-serif;color:#0A0A0A;max-width:800px;margin:30px auto;padding:0 20px;}
     h1{color:#7C3AED;margin-bottom:0;}
     .meta{color:#666;font-size:13px;margin-bottom:20px;}
     h2{font-size:16px;border-bottom:2px solid #7C3AED;padding-bottom:4px;margin-top:30px;}
+    .hint-click{font-size:11px;color:#888;font-weight:normal;}
     table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px;}
     th{background:#F5F5F5;text-align:left;padding:6px 8px;}
     td{padding:6px 8px;border-bottom:1px solid #eee;}
     .kpis{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;}
-    .kpi{border:1px solid #eee;border-radius:8px;padding:10px 14px;min-width:150px;}
+    .kpi{border:1px solid #eee;border-left:4px solid #ddd;border-radius:8px;padding:10px 14px;min-width:150px;}
     .kpi .l{font-size:11px;color:#888;text-transform:uppercase;}
     .kpi .v{font-size:18px;font-weight:bold;}
+    .kpi.positive{border-left-color:#059669;}
+    .kpi.negative{border-left-color:#DC2626;}
+    .kpi.warning{border-left-color:#D97706;}
+    .kpi.positive .v{color:#059669;}
+    .kpi.negative .v{color:#DC2626;}
+    .kpi.warning .v{color:#D97706;}
+    .green{color:#059669;font-weight:bold;}
+    .red{color:#DC2626;font-weight:bold;}
+    .amber{color:#D97706;font-weight:bold;}
+    tr.cat-row{cursor:pointer;}
+    tr.cat-row:hover td{background:#FAF7FF;}
+    tr.cat-row td:first-child::before{content:'▸  ';color:#7C3AED;}
+    tr.cat-row.open td:first-child::before{content:'▾  ';}
+    .cat-detail{display:none;background:#FBFAFF;padding:10px 16px;border-left:3px solid #7C3AED;}
+    .cat-detail.open{display:block;}
+    .det-item{padding:8px 0;border-bottom:1px dashed #E5DEFB;}
+    .det-item:last-child{border-bottom:none;}
+    .det-row{display:flex;justify-content:space-between;font-size:12px;color:#666;}
+    .det-desc{font-size:13px;margin-top:2px;}
+    .det-photo{max-width:220px;max-height:160px;border-radius:8px;margin-top:6px;display:block;border:1px solid #eee;}
+    .det-file{font-size:12px;color:#7C3AED;text-decoration:none;display:inline-block;margin-top:6px;}
     .footer{margin-top:40px;font-size:11px;color:#999;text-align:center;}
   </style></head><body>
     <h1>NidusLab</h1>
@@ -1247,45 +1286,59 @@ function buildSummaryReportHtml(r){
 
     <h2>1. Executive Summary</h2>
     <div class="kpis">
-      <div class="kpi"><div class="l">Total Revenue</div><div class="v">${formatBDT(r.totalRevenue)}</div></div>
-      <div class="kpi"><div class="l">Total Expenses</div><div class="v">${formatBDT(r.totalExpenses)}</div></div>
+      <div class="kpi positive"><div class="l">Total Revenue</div><div class="v">${formatBDT(r.totalRevenue)}</div></div>
+      <div class="kpi negative"><div class="l">Total Expenses</div><div class="v">${formatBDT(r.totalExpenses)}</div></div>
       <div class="kpi"><div class="l">Company Paid</div><div class="v">${formatBDT(r.companyPaid)}</div></div>
       <div class="kpi"><div class="l">Employee Paid</div><div class="v">${formatBDT(r.employeePaid)}</div></div>
-      <div class="kpi"><div class="l">Total Reimbursed</div><div class="v">${formatBDT(r.totalReimbursed)}</div></div>
-      <div class="kpi"><div class="l">Employee Outstanding</div><div class="v">${formatBDT(r.employeeOutstanding)}</div></div>
-      <div class="kpi"><div class="l">Vendor Outstanding</div><div class="v">${formatBDT(r.vendorOutstanding)}</div></div>
-      <div class="kpi"><div class="l">Net Income</div><div class="v">${formatBDT(r.netIncome)}</div></div>
+      <div class="kpi positive"><div class="l">Total Reimbursed</div><div class="v">${formatBDT(r.totalReimbursed)}</div></div>
+      <div class="kpi warning"><div class="l">Employee Outstanding</div><div class="v">${formatBDT(r.employeeOutstanding)}</div></div>
+      <div class="kpi warning"><div class="l">Vendor Outstanding</div><div class="v">${formatBDT(r.vendorOutstanding)}</div></div>
+      <div class="kpi ${r.netIncome>=0?'positive':'negative'}"><div class="l">Net Income</div><div class="v">${formatBDT(r.netIncome)}</div></div>
     </div>
 
-    <h2>2. Expense Summary by Category</h2>
+    <h2>2. Expense Summary by Category <span class="hint-click">(click a row to view attached description / date / photos)</span></h2>
     <table><thead><tr><th>Category</th><th># Expenses</th><th>Total</th><th>Company Paid</th><th>Employee Paid</th><th>Reimbursed</th><th>Outstanding</th></tr></thead>
-    <tbody>${catRows.length ? catRows.map(([name,c])=>`<tr><td>${name}</td><td>${c.count}</td><td>${formatBDT(c.amount)}</td><td>${formatBDT(c.companyPaid)}</td><td>${formatBDT(c.employeePaid)}</td><td>${formatBDT(c.reimbursed)}</td><td>${formatBDT(c.outstanding)}</td></tr>`).join('') : '<tr><td colspan="7">No expenses in this period.</td></tr>'}</tbody></table>
+    <tbody>${catRows.length ? catRows.map(([name,c],idx)=>{
+      const detail = catDetailHtml(name);
+      const rowAttrs = detail ? ` class="cat-row" onclick="toggleCatDetail('cat_${idx}', this)"` : '';
+      const detailRow = detail ? `<tr><td colspan="7" style="padding:0;border-bottom:1px solid #eee;"><div id="cat_${idx}" class="cat-detail">${detail}</div></td></tr>` : '';
+      return `<tr${rowAttrs}><td>${name}</td><td>${c.count}</td><td><b>${formatBDT(c.amount)}</b></td><td>${formatBDT(c.companyPaid)}</td><td>${formatBDT(c.employeePaid)}</td><td class="green">${formatBDT(c.reimbursed)}</td><td class="amber">${formatBDT(c.outstanding)}</td></tr>${detailRow}`;
+    }).join('') : '<tr><td colspan="7">No expenses in this period.</td></tr>'}</tbody></table>
 
     <h2>3. Employee Expense Summary</h2>
     <table><thead><tr><th>Employee</th><th>Personally Paid</th><th>Reimbursed</th><th>Outstanding</th></tr></thead>
-    <tbody>${empRows.length ? empRows.map(([name,e])=>`<tr><td>${name}</td><td>${formatBDT(e.paid)}</td><td>${formatBDT(e.reimbursed)}</td><td>${formatBDT(e.outstanding)}</td></tr>`).join('') : '<tr><td colspan="4">No employee-paid expenses in this period.</td></tr>'}</tbody></table>
+    <tbody>${empRows.length ? empRows.map(([name,e])=>`<tr><td>${name}</td><td>${formatBDT(e.paid)}</td><td class="green">${formatBDT(e.reimbursed)}</td><td class="${e.outstanding>0?'red':'green'}">${formatBDT(e.outstanding)}</td></tr>`).join('') : '<tr><td colspan="4">No employee-paid expenses in this period.</td></tr>'}</tbody></table>
 
     <h2>4. Reimbursement Summary</h2>
     <table><tbody>
       <tr><td>Total Submitted</td><td>${formatBDT(r.reimbursementSummary.totalSubmitted)}</td></tr>
-      <tr><td>Total Reimbursed</td><td>${formatBDT(r.reimbursementSummary.totalReimbursed)}</td></tr>
-      <tr><td>Total Outstanding</td><td>${formatBDT(r.reimbursementSummary.totalOutstanding)}</td></tr>
+      <tr><td>Total Reimbursed</td><td class="green">${formatBDT(r.reimbursementSummary.totalReimbursed)}</td></tr>
+      <tr><td>Total Outstanding</td><td class="${r.reimbursementSummary.totalOutstanding>0?'red':'green'}">${formatBDT(r.reimbursementSummary.totalOutstanding)}</td></tr>
       <tr><td>Pending Requests</td><td>${r.reimbursementSummary.pendingCount}</td></tr>
       <tr><td>Fully Reimbursed</td><td>${r.reimbursementSummary.reimbursedCount}</td></tr>
     </tbody></table>
 
     <h2>5. Revenue Summary</h2>
     <table><thead><tr><th>Revenue Type</th><th># Transactions</th><th>Total Amount</th></tr></thead>
-    <tbody>${revRows.length ? revRows.map(([name,rr])=>`<tr><td>${name}</td><td>${rr.count}</td><td>${formatBDT(rr.amount)}</td></tr>`).join('') : '<tr><td colspan="3">No revenue in this period.</td></tr>'}</tbody></table>
+    <tbody>${revRows.length ? revRows.map(([name,rr])=>`<tr><td>${name}</td><td>${rr.count}</td><td class="green"><b>${formatBDT(rr.amount)}</b></td></tr>`).join('') : '<tr><td colspan="3">No revenue in this period.</td></tr>'}</tbody></table>
 
     <h2>6. Profit &amp; Loss</h2>
     <table><tbody>
-      <tr><td>Total Revenue</td><td>${formatBDT(r.totalRevenue)}</td></tr>
-      <tr><td>Total Expenses</td><td>${formatBDT(r.totalExpenses)}</td></tr>
-      <tr><td><b>Net Income</b></td><td><b>${formatBDT(r.netIncome)}</b></td></tr>
+      <tr><td>Total Revenue</td><td class="green">${formatBDT(r.totalRevenue)}</td></tr>
+      <tr><td>Total Expenses</td><td class="red">${formatBDT(r.totalExpenses)}</td></tr>
+      <tr><td><b>Net Income</b></td><td class="${r.netIncome>=0?'green':'red'}"><b>${formatBDT(r.netIncome)}</b></td></tr>
     </tbody></table>
 
     <div class="footer">Generated by the NidusLab Finance &amp; Accounting local demo. Prepared By: __________ &nbsp;&nbsp; Approved By: __________</div>
+
+    <script>
+      function toggleCatDetail(id, rowEl){
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.classList.toggle('open');
+        rowEl.classList.toggle('open');
+      }
+    <\/script>
   </body></html>`;
 }
 

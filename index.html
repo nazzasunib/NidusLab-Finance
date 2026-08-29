@@ -1281,7 +1281,10 @@ function buildSummaryReportHtml(r){
     .det-file{font-size:12px;color:#7C3AED;text-decoration:none;display:inline-block;margin-top:6px;}
     .footer{margin-top:40px;font-size:11px;color:#999;text-align:center;}
   </style></head><body>
-    <h1>NidusLab</h1>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <img src="${LOGO_DATA_URI}" alt="NidusLab" style="width:46px;height:46px;">
+      <h1 style="margin:0;"><span style="color:#0A0A0A;">Nidus</span><span style="color:#7C3AED;">Lab</span></h1>
+    </div>
     <div class="meta">Financial Summary Report &mdash; Report Period: <b>${r.label}</b><br>Generated: ${generatedAt}</div>
 
     <h2>1. Executive Summary</h2>

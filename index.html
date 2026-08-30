@@ -1244,20 +1244,45 @@ function buildSummaryReportHtml(r){
     }).join('');
   };
 
+  // Each KPI card links straight to the report section that breaks its
+  // number down — a plain <a href="#..."> so the jump also works from a
+  // browser-exported PDF, which cannot run the onclick JS the category
+  // rows below use.
+  const KPI_DEFS = [
+    { key:'totalRevenue', cls:'positive', label:'Total Revenue', value:r.totalRevenue, target:'#sec-revenue' },
+    { key:'totalExpenses', cls:'negative', label:'Total Expenses', value:r.totalExpenses, target:'#sec-expenses' },
+    { key:'companyPaid', cls:'', label:'Company Paid', value:r.companyPaid, target:'#sec-expenses' },
+    { key:'employeePaid', cls:'', label:'Employee Paid', value:r.employeePaid, target:'#sec-employee' },
+    { key:'totalReimbursed', cls:'positive', label:'Total Reimbursed', value:r.totalReimbursed, target:'#sec-reimbursement' },
+    { key:'employeeOutstanding', cls:'warning', label:'Employee Outstanding', value:r.employeeOutstanding, target:'#sec-employee' },
+    { key:'vendorOutstanding', cls:'warning', label:'Vendor Outstanding', value:r.vendorOutstanding, target:'#sec-expenses' },
+    { key:'netIncome', cls:r.netIncome>=0?'positive':'negative', label:'Net Income', value:r.netIncome, target:'#sec-pl' },
+  ];
+
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>NidusLab Financial Summary — ${r.label}</title>
   <style>
+    html{scroll-behavior:smooth;}
     body{font-family:Arial,Helvetica,sans-serif;color:#0A0A0A;max-width:800px;margin:30px auto;padding:0 20px;}
     h1{color:#7C3AED;margin-bottom:0;}
     .meta{color:#666;font-size:13px;margin-bottom:20px;}
-    h2{font-size:16px;border-bottom:2px solid #7C3AED;padding-bottom:4px;margin-top:30px;}
+    h2{font-size:16px;border-bottom:2px solid #7C3AED;padding-bottom:4px;margin-top:0;}
     .hint-click{font-size:11px;color:#888;font-weight:normal;}
+    .table-wrap{overflow-x:auto;}
     table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px;}
     th{background:#F5F5F5;text-align:left;padding:6px 8px;}
     td{padding:6px 8px;border-bottom:1px solid #eee;}
+    .report-section{scroll-margin-top:16px;padding-top:26px;}
+    .report-section:target{animation:sectionFlash 1.8s ease;}
+    @keyframes sectionFlash{0%{background:#F2ECFF;border-radius:10px;} 100%{background:transparent;}}
+    .back-to-top{display:inline-block;margin-top:12px;font-size:11px;color:#7C3AED;text-decoration:none;font-weight:700;}
+    .back-to-top:hover{text-decoration:underline;}
     .kpis{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;}
-    .kpi{border:1px solid #eee;border-left:4px solid #ddd;border-radius:8px;padding:10px 14px;min-width:150px;}
+    .kpi{display:block;border:1px solid #eee;border-left:4px solid #ddd;border-radius:8px;padding:10px 14px;min-width:150px;flex:1 1 150px;text-decoration:none;color:inherit;transition:.15s ease;position:relative;}
+    a.kpi:hover{box-shadow:0 4px 10px rgba(124,58,237,.16);transform:translateY(-2px);border-color:#d8cdf7;}
+    a.kpi:active{transform:translateY(0);}
     .kpi .l{font-size:11px;color:#888;text-transform:uppercase;}
     .kpi .v{font-size:18px;font-weight:bold;}
+    .kpi .cta{font-size:10px;color:#7C3AED;font-weight:700;margin-top:6px;letter-spacing:.02em;}
     .kpi.positive{border-left-color:#059669;}
     .kpi.negative{border-left-color:#DC2626;}
     .kpi.warning{border-left-color:#D97706;}
@@ -1280,6 +1305,12 @@ function buildSummaryReportHtml(r){
     .det-photo{max-width:220px;max-height:160px;border-radius:8px;margin-top:6px;display:block;border:1px solid #eee;}
     .det-file{font-size:12px;color:#7C3AED;text-decoration:none;display:inline-block;margin-top:6px;}
     .footer{margin-top:40px;font-size:11px;color:#999;text-align:center;}
+    @media (max-width:600px){
+      .kpi{flex:1 1 calc(50% - 14px);min-width:0;}
+      table{font-size:11.5px;}
+      th,td{padding:6px;}
+      .det-photo{max-width:100%;}
+    }
   </style></head><body>
     <div style="display:flex;align-items:center;gap:12px;">
       <img src="${LOGO_DATA_URI}" alt="NidusLab" style="width:46px;height:46px;">
@@ -1287,50 +1318,60 @@ function buildSummaryReportHtml(r){
     </div>
     <div class="meta">Financial Summary Report &mdash; Report Period: <b>${r.label}</b><br>Generated: ${generatedAt}</div>
 
-    <h2>1. Executive Summary</h2>
-    <div class="kpis">
-      <div class="kpi positive"><div class="l">Total Revenue</div><div class="v">${formatBDT(r.totalRevenue)}</div></div>
-      <div class="kpi negative"><div class="l">Total Expenses</div><div class="v">${formatBDT(r.totalExpenses)}</div></div>
-      <div class="kpi"><div class="l">Company Paid</div><div class="v">${formatBDT(r.companyPaid)}</div></div>
-      <div class="kpi"><div class="l">Employee Paid</div><div class="v">${formatBDT(r.employeePaid)}</div></div>
-      <div class="kpi positive"><div class="l">Total Reimbursed</div><div class="v">${formatBDT(r.totalReimbursed)}</div></div>
-      <div class="kpi warning"><div class="l">Employee Outstanding</div><div class="v">${formatBDT(r.employeeOutstanding)}</div></div>
-      <div class="kpi warning"><div class="l">Vendor Outstanding</div><div class="v">${formatBDT(r.vendorOutstanding)}</div></div>
-      <div class="kpi ${r.netIncome>=0?'positive':'negative'}"><div class="l">Net Income</div><div class="v">${formatBDT(r.netIncome)}</div></div>
-    </div>
+    <section id="sec-executive" class="report-section" style="padding-top:0;">
+      <h2>1. Executive Summary <span class="hint-click">(click a card to jump to its section — works in the browser and in an exported PDF)</span></h2>
+      <div class="kpis">
+        ${KPI_DEFS.map(k => `<a class="kpi ${k.cls}" href="${k.target}"><div class="l">${k.label}</div><div class="v">${formatBDT(k.value)}</div><div class="cta">View Details ▸</div></a>`).join('')}
+      </div>
+    </section>
 
-    <h2>2. Expense Summary by Category <span class="hint-click">(click a row to view attached description / date / photos)</span></h2>
-    <table><thead><tr><th>Category</th><th># Expenses</th><th>Total</th><th>Company Paid</th><th>Employee Paid</th><th>Reimbursed</th><th>Outstanding</th></tr></thead>
-    <tbody>${catRows.length ? catRows.map(([name,c],idx)=>{
-      const detail = catDetailHtml(name);
-      const rowAttrs = detail ? ` class="cat-row" onclick="toggleCatDetail('cat_${idx}', this)"` : '';
-      const detailRow = detail ? `<tr><td colspan="7" style="padding:0;border-bottom:1px solid #eee;"><div id="cat_${idx}" class="cat-detail">${detail}</div></td></tr>` : '';
-      return `<tr${rowAttrs}><td>${name}</td><td>${c.count}</td><td><b>${formatBDT(c.amount)}</b></td><td>${formatBDT(c.companyPaid)}</td><td>${formatBDT(c.employeePaid)}</td><td class="green">${formatBDT(c.reimbursed)}</td><td class="amber">${formatBDT(c.outstanding)}</td></tr>${detailRow}`;
-    }).join('') : '<tr><td colspan="7">No expenses in this period.</td></tr>'}</tbody></table>
+    <section id="sec-expenses" class="report-section">
+      <h2>2. Expense Summary by Category <span class="hint-click">(click a row to expand full details — browser only, not in a printed PDF)</span></h2>
+      <div class="table-wrap"><table><thead><tr><th>Category</th><th># Expenses</th><th>Total</th><th>Company Paid</th><th>Employee Paid</th><th>Reimbursed</th><th>Outstanding</th></tr></thead>
+      <tbody>${catRows.length ? catRows.map(([name,c],idx)=>{
+        const detail = catDetailHtml(name);
+        const rowAttrs = detail ? ` class="cat-row" onclick="toggleCatDetail('cat_${idx}', this)"` : '';
+        const detailRow = detail ? `<tr><td colspan="7" style="padding:0;border-bottom:1px solid #eee;"><div id="cat_${idx}" class="cat-detail">${detail}</div></td></tr>` : '';
+        return `<tr${rowAttrs}><td>${name}</td><td>${c.count}</td><td><b>${formatBDT(c.amount)}</b></td><td>${formatBDT(c.companyPaid)}</td><td>${formatBDT(c.employeePaid)}</td><td class="green">${formatBDT(c.reimbursed)}</td><td class="amber">${formatBDT(c.outstanding)}</td></tr>${detailRow}`;
+      }).join('') : '<tr><td colspan="7">No expenses in this period.</td></tr>'}</tbody></table></div>
+      <a class="back-to-top" href="#sec-executive">↑ Back to Summary</a>
+    </section>
 
-    <h2>3. Employee Expense Summary</h2>
-    <table><thead><tr><th>Employee</th><th>Personally Paid</th><th>Reimbursed</th><th>Outstanding</th></tr></thead>
-    <tbody>${empRows.length ? empRows.map(([name,e])=>`<tr><td>${name}</td><td>${formatBDT(e.paid)}</td><td class="green">${formatBDT(e.reimbursed)}</td><td class="${e.outstanding>0?'red':'green'}">${formatBDT(e.outstanding)}</td></tr>`).join('') : '<tr><td colspan="4">No employee-paid expenses in this period.</td></tr>'}</tbody></table>
+    <section id="sec-employee" class="report-section">
+      <h2>3. Employee Expense Summary</h2>
+      <div class="table-wrap"><table><thead><tr><th>Employee</th><th>Personally Paid</th><th>Reimbursed</th><th>Outstanding</th></tr></thead>
+      <tbody>${empRows.length ? empRows.map(([name,e])=>`<tr><td>${name}</td><td>${formatBDT(e.paid)}</td><td class="green">${formatBDT(e.reimbursed)}</td><td class="${e.outstanding>0?'red':'green'}">${formatBDT(e.outstanding)}</td></tr>`).join('') : '<tr><td colspan="4">No employee-paid expenses in this period.</td></tr>'}</tbody></table></div>
+      <a class="back-to-top" href="#sec-executive">↑ Back to Summary</a>
+    </section>
 
-    <h2>4. Reimbursement Summary</h2>
-    <table><tbody>
-      <tr><td>Total Submitted</td><td>${formatBDT(r.reimbursementSummary.totalSubmitted)}</td></tr>
-      <tr><td>Total Reimbursed</td><td class="green">${formatBDT(r.reimbursementSummary.totalReimbursed)}</td></tr>
-      <tr><td>Total Outstanding</td><td class="${r.reimbursementSummary.totalOutstanding>0?'red':'green'}">${formatBDT(r.reimbursementSummary.totalOutstanding)}</td></tr>
-      <tr><td>Pending Requests</td><td>${r.reimbursementSummary.pendingCount}</td></tr>
-      <tr><td>Fully Reimbursed</td><td>${r.reimbursementSummary.reimbursedCount}</td></tr>
-    </tbody></table>
+    <section id="sec-reimbursement" class="report-section">
+      <h2>4. Reimbursement Summary</h2>
+      <div class="table-wrap"><table><tbody>
+        <tr><td>Total Submitted</td><td>${formatBDT(r.reimbursementSummary.totalSubmitted)}</td></tr>
+        <tr><td>Total Reimbursed</td><td class="green">${formatBDT(r.reimbursementSummary.totalReimbursed)}</td></tr>
+        <tr><td>Total Outstanding</td><td class="${r.reimbursementSummary.totalOutstanding>0?'red':'green'}">${formatBDT(r.reimbursementSummary.totalOutstanding)}</td></tr>
+        <tr><td>Pending Requests</td><td>${r.reimbursementSummary.pendingCount}</td></tr>
+        <tr><td>Fully Reimbursed</td><td>${r.reimbursementSummary.reimbursedCount}</td></tr>
+      </tbody></table></div>
+      <a class="back-to-top" href="#sec-executive">↑ Back to Summary</a>
+    </section>
 
-    <h2>5. Revenue Summary</h2>
-    <table><thead><tr><th>Revenue Type</th><th># Transactions</th><th>Total Amount</th></tr></thead>
-    <tbody>${revRows.length ? revRows.map(([name,rr])=>`<tr><td>${name}</td><td>${rr.count}</td><td class="green"><b>${formatBDT(rr.amount)}</b></td></tr>`).join('') : '<tr><td colspan="3">No revenue in this period.</td></tr>'}</tbody></table>
+    <section id="sec-revenue" class="report-section">
+      <h2>5. Revenue Summary</h2>
+      <div class="table-wrap"><table><thead><tr><th>Revenue Type</th><th># Transactions</th><th>Total Amount</th></tr></thead>
+      <tbody>${revRows.length ? revRows.map(([name,rr])=>`<tr><td>${name}</td><td>${rr.count}</td><td class="green"><b>${formatBDT(rr.amount)}</b></td></tr>`).join('') : '<tr><td colspan="3">No revenue in this period.</td></tr>'}</tbody></table></div>
+      <a class="back-to-top" href="#sec-executive">↑ Back to Summary</a>
+    </section>
 
-    <h2>6. Profit &amp; Loss</h2>
-    <table><tbody>
-      <tr><td>Total Revenue</td><td class="green">${formatBDT(r.totalRevenue)}</td></tr>
-      <tr><td>Total Expenses</td><td class="red">${formatBDT(r.totalExpenses)}</td></tr>
-      <tr><td><b>Net Income</b></td><td class="${r.netIncome>=0?'green':'red'}"><b>${formatBDT(r.netIncome)}</b></td></tr>
-    </tbody></table>
+    <section id="sec-pl" class="report-section">
+      <h2>6. Profit &amp; Loss</h2>
+      <div class="table-wrap"><table><tbody>
+        <tr><td>Total Revenue</td><td class="green">${formatBDT(r.totalRevenue)}</td></tr>
+        <tr><td>Total Expenses</td><td class="red">${formatBDT(r.totalExpenses)}</td></tr>
+        <tr><td><b>Net Income</b></td><td class="${r.netIncome>=0?'green':'red'}"><b>${formatBDT(r.netIncome)}</b></td></tr>
+      </tbody></table></div>
+      <a class="back-to-top" href="#sec-executive">↑ Back to Summary</a>
+    </section>
 
     <div class="footer">Generated by the NidusLab Finance &amp; Accounting local demo. Prepared By: __________ &nbsp;&nbsp; Approved By: __________</div>
 

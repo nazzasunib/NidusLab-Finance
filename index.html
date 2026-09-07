@@ -903,7 +903,6 @@ function renderDashboard(){
           <select id="dash_year" onchange="applyDashboardMonth()" style="padding:8px 12px;border:1px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;">${dashboardYearOptionsHtml()}</select>
         ` : ''}
       </div>
-      ${dashboardState.mode==='month' ? `<div class="hint" style="margin-top:8px;">Total Expenses / Company Paid / Employee Paid / Total Reimbursed are for this month only. Employee &amp; Vendor Outstanding carry forward — an unpaid balance from an earlier month keeps showing here until it's paid off.</div>` : ''}
     </div>
 
     <div class="row" style="margin-bottom:6px;">

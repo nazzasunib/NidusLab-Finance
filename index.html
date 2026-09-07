@@ -386,46 +386,6 @@
   </div>
 </div>
 
-<!-- Add Revenue Modal -->
-<div class="modal-overlay" id="revenueModal">
-  <div class="modal">
-    <span class="close-x" onclick="closeModal('revenueModal')">&times;</span>
-    <h2 id="revenueModalTitle">Add Revenue</h2>
-    <input type="hidden" id="rev_editing_id" value="">
-    <div class="field-row">
-      <div class="field"><label>Date</label><input type="date" id="rev_date"></div>
-      <div class="field">
-        <label>Revenue Type</label>
-        <select id="rev_type">
-          <option value="Sales Revenue">Sales Revenue</option>
-          <option value="Service Revenue">Service Revenue</option>
-          <option value="Other Income">Other Income</option>
-        </select>
-      </div>
-    </div>
-    <div class="field"><label>Customer (optional)</label><input type="text" id="rev_customer"></div>
-    <div class="field"><label>Description</label><input type="text" id="rev_description"></div>
-    <div class="field-row">
-      <div class="field"><label>Amount (৳)</label><input type="number" id="rev_amount" min="0" step="0.01"></div>
-      <div class="field">
-        <label>Payment Method</label>
-        <select id="rev_method">
-          <option value="CASH">Cash</option>
-          <option value="BANK_TRANSFER">Bank Transfer</option>
-          <option value="BKASH">bKash</option>
-          <option value="NAGAD">Nagad</option>
-          <option value="CARD">Card</option>
-          <option value="OTHER">Other</option>
-        </select>
-      </div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn" id="revenueSaveBtn" onclick="saveRevenue()">Save Revenue</button>
-      <button class="btn secondary" onclick="closeModal('revenueModal')">Cancel</button>
-    </div>
-  </div>
-</div>
-
 <!-- Expense Detail Modal -->
 <div class="modal-overlay" id="detailModal">
   <div class="modal" style="max-width:640px;">
@@ -610,9 +570,6 @@ const CHART_OF_ACCOUNTS = [
   {code:'3000',name:"Owner's Capital",type:'EQUITY'},
   {code:'3010',name:'Retained Earnings',type:'EQUITY'},
   {code:'3020',name:"Owner's Drawings",type:'EQUITY'},
-  {code:'4000',name:'Sales Revenue',type:'REVENUE'},
-  {code:'4010',name:'Service Revenue',type:'REVENUE'},
-  {code:'4020',name:'Other Income',type:'REVENUE'},
   {code:'5000',name:'Marketing Expense',type:'EXPENSE'},
   {code:'5010',name:'Advertising Expense',type:'EXPENSE'},
   {code:'5020',name:'Transport Expense',type:'EXPENSE'},
@@ -635,7 +592,6 @@ const ICONS = {
   dashboard: '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.6"/><rect x="11" y="2" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.6"/><rect x="2" y="11" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.6"/><rect x="11" y="11" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.6"/></svg>',
   expenses: '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 2.2h10v14.6l-2-1.2-1.5 1.2-1.5-1.2-1.5 1.2-1.5-1.2-2 1.2V2.2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.3 6.8h5.4M7.3 9.6h5.4M7.3 12.4h3.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
   reimbursements: '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="7" cy="7.5" r="4.2" stroke="currentColor" stroke-width="1.6"/><circle cx="13" cy="12.5" r="4.2" stroke="currentColor" stroke-width="1.6"/></svg>',
-  revenue: '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2.3 14.2l4.7-5 3 3 5.7-6.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M12.2 3.8h3.5v3.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   summary: '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="14" height="14" rx="2.2" stroke="currentColor" stroke-width="1.6"/><path d="M6.5 7.6h7M6.5 10.4h7M6.5 13.2h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
   accounts: '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4.2 3.8c0-.9.7-1.6 1.6-1.6H16v13.6H5.8c-.9 0-1.6.7-1.6 1.6V3.8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M4.2 15.8c0-.9.7-1.6 1.6-1.6H16" stroke="currentColor" stroke-width="1.5"/></svg>',
 };
@@ -644,7 +600,6 @@ const NAV = [
   {id:'dashboard', label:'Dashboard', icon:ICONS.dashboard},
   {id:'expenses', label:'Expenses', icon:ICONS.expenses},
   {id:'reimbursements', label:'Reimbursements', icon:ICONS.reimbursements},
-  {id:'revenue', label:'Revenue', icon:ICONS.revenue},
   {id:'summary', label:'Summary', icon:ICONS.summary},
   {id:'accounts', label:'Chart of Accounts', icon:ICONS.accounts},
 ];
@@ -699,9 +654,6 @@ function seedData(){
     paidBy: 'EMPLOYEE', paymentMethod: 'BKASH', employee:'Prima Islam', vendor:'BrightPrint BD', notes:'Full amount owed back — vendor portion tracked separately once Orders module is added.', photo:null
   });
   seeded.expenses = [transport, food, tshirt];
-  seeded.revenue = [
-    { id: uid(), date: todayStr(), type:'Service Revenue', customer:'Acme Retail', description:'NidusJob subscription — August', amount:120000, paymentMethod:'BANK_TRANSFER', createdAt: Date.now() }
-  ];
   localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
   return seeded;
 }
@@ -777,7 +729,6 @@ function render(){
   if (state.currentTab === 'dashboard') c.innerHTML = renderDashboard();
   else if (state.currentTab === 'expenses') c.innerHTML = renderExpenses();
   else if (state.currentTab === 'reimbursements') c.innerHTML = renderReimbursements();
-  else if (state.currentTab === 'revenue') c.innerHTML = renderRevenue();
   else if (state.currentTab === 'summary') c.innerHTML = renderSummary();
   else if (state.currentTab === 'accounts') c.innerHTML = renderAccounts();
   if (state.currentTab === 'summary') attachSummaryHandlers();
@@ -794,17 +745,15 @@ function switchTab(id){ state.currentTab = id; closeSidebar(); render(); }
 function openSidebar(){ document.getElementById('sidebar').classList.add('open'); document.getElementById('overlayDim').classList.add('open'); }
 function closeSidebar(){ document.getElementById('sidebar').classList.remove('open'); document.getElementById('overlayDim').classList.remove('open'); }
 
-function computeKpis(expenses, revenue){
+function computeKpis(expenses){
   expenses = expenses || data.expenses;
-  revenue = revenue || data.revenue;
-  const totalRevenue = revenue.reduce((s,r)=>s+Number(r.amount),0);
   const totalExpenses = expenses.reduce((s,e)=>s+Number(e.amount),0);
   const companyPaid = expenses.reduce((s,e)=>s+Number(e.companyPaid),0);
   const employeePaid = expenses.reduce((s,e)=>s+Number(e.employeePaid),0);
   const totalReimbursed = expenses.reduce((s,e)=>s+Number(e.reimbursedAmount),0);
   const employeeOutstanding = expenses.reduce((s,e)=>s+Number(e.employeeOutstanding),0);
   const vendorOutstanding = expenses.reduce((s,e)=>s+Number(e.companyOutstanding),0);
-  return { totalRevenue, totalExpenses, companyPaid, employeePaid, totalReimbursed, employeeOutstanding, vendorOutstanding, netIncome: totalRevenue - totalExpenses };
+  return { totalExpenses, companyPaid, employeePaid, totalReimbursed, employeeOutstanding, vendorOutstanding };
 }
 
 /* ---------------------------------------------------------
@@ -823,11 +772,6 @@ function dashboardFilteredExpenses(){
   const range = getDashboardRange();
   if (!range) return data.expenses;
   return data.expenses.filter(e => { const t = new Date(e.date).getTime(); return t >= range.from.getTime() && t <= range.to.getTime(); });
-}
-function dashboardFilteredRevenue(){
-  const range = getDashboardRange();
-  if (!range) return data.revenue;
-  return data.revenue.filter(r => { const t = new Date(r.date).getTime(); return t >= range.from.getTime() && t <= range.to.getTime(); });
 }
 function dashboardPeriodLabel(){
   return dashboardState.mode === 'month' ? `${MONTH_NAMES[dashboardState.month]} ${dashboardState.year}` : 'All Data';
@@ -858,11 +802,8 @@ function dashboardYearOptionsHtml(){
    --------------------------------------------------------- */
 function buildKpiHistory(key){
   const expenses = dashboardFilteredExpenses();
-  const revenue = dashboardFilteredRevenue();
   const rows = [];
-  if (key === 'totalRevenue'){
-    revenue.forEach(r => rows.push({ date: r.date, label: `${r.type} — ${r.description||r.customer||''}`, amount: Number(r.amount), sign: '+' }));
-  } else if (key === 'totalExpenses'){
+  if (key === 'totalExpenses'){
     expenses.forEach(e => rows.push({ date: e.date, label: `${e.category} — ${e.description}`, amount: Number(e.amount), sign: '-' }));
   } else if (key === 'companyPaid'){
     expenses.filter(e=>e.companyPaid>0).forEach(e => rows.push({ date: e.date, label: `${e.category} — ${e.description}`, amount: Number(e.companyPaid), sign: '-' }));
@@ -883,18 +824,15 @@ function buildKpiHistory(key){
     expenses.filter(e=>e.employeeOutstanding>0).forEach(e => rows.push({ date: e.date, label: `Owed to ${e.employee} — ${e.description}`, amount: Number(e.employeeOutstanding), sign: '=' }));
   } else if (key === 'vendorOutstanding'){
     expenses.filter(e=>e.companyOutstanding>0).forEach(e => rows.push({ date: e.date, label: `Owed to ${e.vendor||'vendor'} — ${e.description}`, amount: Number(e.companyOutstanding), sign: '=' }));
-  } else if (key === 'netIncome'){
-    revenue.forEach(r => rows.push({ date: r.date, label: `${r.type} — ${r.description||r.customer||''}`, amount: Number(r.amount), sign: '+' }));
-    expenses.forEach(e => rows.push({ date: e.date, label: `${e.category} — ${e.description}`, amount: Number(e.amount), sign: '-' }));
   }
   return rows.sort((a,b)=> new Date(a.date) - new Date(b.date));
 }
 
 const KPI_TITLES = {
-  totalRevenue: 'Total Revenue — History', totalExpenses: 'Total Expenses — History',
+  totalExpenses: 'Total Expenses — History',
   companyPaid: 'Company Paid — History', employeePaid: 'Employee Paid — History',
   totalReimbursed: 'Total Reimbursed — History', employeeOutstanding: 'Employee Outstanding — History',
-  vendorOutstanding: 'Vendor Outstanding — History', netIncome: 'Net Income — History',
+  vendorOutstanding: 'Vendor Outstanding — History',
 };
 
 function showKpiHistory(key){
@@ -924,8 +862,7 @@ function showKpiHistory(key){
 
 function renderDashboard(){
   const filteredExpenses = dashboardFilteredExpenses();
-  const filteredRevenue = dashboardFilteredRevenue();
-  const k = computeKpis(filteredExpenses, filteredRevenue);
+  const k = computeKpis(filteredExpenses);
   const byCategory = {};
   filteredExpenses.forEach(e => { byCategory[e.category] = (byCategory[e.category]||0) + Number(e.amount); });
   const categories = Object.entries(byCategory).sort((a,b)=>b[1]-a[1]).slice(0,6);
@@ -933,7 +870,6 @@ function renderDashboard(){
 
   const recent = [
     ...filteredExpenses.map(e=>({type:'Expense', date:e.createdAt, label: e.category + ' — ' + e.description, amount:e.amount})),
-    ...filteredRevenue.map(r=>({type:'Revenue', date:r.createdAt, label: r.type + ' — ' + (r.description||''), amount:r.amount})),
   ].sort((a,b)=>b.date-a.date).slice(0,8);
 
   return `
@@ -957,17 +893,14 @@ function renderDashboard(){
 
     <div class="row" style="margin-bottom:6px;">
       <button class="btn" onclick="openModal('expenseModal'); prepExpenseModal();">+ Add Expense</button>
-      <button class="btn secondary" onclick="openModal('revenueModal'); prepRevenueModal();">+ Add Revenue</button>
     </div>
     <div class="kpi-grid">
-      <div class="kpi positive" style="cursor:pointer;" onclick="showKpiHistory('totalRevenue')"><div class="label">Total Revenue</div><div class="value">${formatBDT(k.totalRevenue)}</div></div>
       <div class="kpi negative" style="cursor:pointer;" onclick="showKpiHistory('totalExpenses')"><div class="label">Total Expenses</div><div class="value">${formatBDT(k.totalExpenses)}</div></div>
       <div class="kpi" style="cursor:pointer;" onclick="showKpiHistory('companyPaid')"><div class="label">Company Paid</div><div class="value">${formatBDT(k.companyPaid)}</div></div>
       <div class="kpi" style="cursor:pointer;" onclick="showKpiHistory('employeePaid')"><div class="label">Employee Paid</div><div class="value">${formatBDT(k.employeePaid)}</div></div>
       <div class="kpi" style="cursor:pointer;" onclick="showKpiHistory('totalReimbursed')"><div class="label">Total Reimbursed</div><div class="value">${formatBDT(k.totalReimbursed)}</div></div>
       <div class="kpi warning" style="cursor:pointer;" onclick="showKpiHistory('employeeOutstanding')"><div class="label">Employee Outstanding</div><div class="value">${formatBDT(k.employeeOutstanding)}</div></div>
       <div class="kpi warning" style="cursor:pointer;" onclick="showKpiHistory('vendorOutstanding')"><div class="label">Vendor Outstanding</div><div class="value">${formatBDT(k.vendorOutstanding)}</div></div>
-      <div class="kpi ${k.netIncome>=0?'positive':'negative'}" style="cursor:pointer;" onclick="showKpiHistory('netIncome')"><div class="label">Net Income</div><div class="value">${formatBDT(k.netIncome)}</div></div>
     </div>
     <p class="subtitle" style="margin-top:-12px;">💡 Click any card above to see its full history.</p>
 
@@ -1058,30 +991,6 @@ function renderReimbursements(){
   `;
 }
 
-function renderRevenue(){
-  const rows = [...data.revenue].sort((a,b)=>b.createdAt-a.createdAt);
-  return `
-    <div class="row" style="justify-content:space-between;">
-      <h1>Revenue</h1>
-      <button class="btn" onclick="openModal('revenueModal'); prepRevenueModal();">+ Add Revenue</button>
-    </div>
-    <div class="card" style="padding:0;overflow-x:auto;">
-      <table>
-        <thead><tr><th>Date</th><th>Type</th><th>Customer</th><th>Description</th><th>Amount</th><th></th></tr></thead>
-        <tbody>
-          ${rows.length ? rows.map(r=>`
-            <tr><td>${formatDate(r.date)}</td><td>${r.type}</td><td>${r.customer||'—'}</td><td>${r.description||'—'}</td><td class="green"><b>${formatBDT(r.amount)}</b></td>
-              <td class="row" style="gap:6px;flex-wrap:nowrap;">
-                <button class="btn sm outline" onclick="openEditRevenue('${r.id}')">Edit</button>
-                <button class="btn sm danger" onclick="deleteRevenue('${r.id}')">Delete</button>
-              </td>
-            </tr>
-          `).join('') : `<tr><td colspan="6" class="empty">No revenue recorded yet.</td></tr>`}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
 
 /* ---------------------------------------------------------
    Financial Summary — Month-wise or Custom Date Range
@@ -1162,9 +1071,7 @@ function resolveSummaryRange(){
 function computeSummaryForRange(from, to){
   const inRange = d => { const t = new Date(d).getTime(); return t >= from.getTime() && t <= to.getTime(); };
   const expenses = data.expenses.filter(e => inRange(e.date));
-  const revenue = data.revenue.filter(r => inRange(r.date));
 
-  const totalRevenue = revenue.reduce((s,r)=>s+Number(r.amount),0);
   const totalExpenses = expenses.reduce((s,e)=>s+Number(e.amount),0);
   const companyPaid = expenses.reduce((s,e)=>s+Number(e.companyPaid),0);
   const employeePaid = expenses.reduce((s,e)=>s+Number(e.employeePaid),0);
@@ -1189,12 +1096,6 @@ function computeSummaryForRange(from, to){
     byEmployee[e.employee].outstanding += Number(e.employeeOutstanding);
   });
 
-  const byRevenueType = {};
-  revenue.forEach(r=>{
-    if (!byRevenueType[r.type]) byRevenueType[r.type] = { count:0, amount:0 };
-    byRevenueType[r.type].count++; byRevenueType[r.type].amount += Number(r.amount);
-  });
-
   const reimbursementRows = expenses.filter(e=>e.paidBy==='EMPLOYEE');
   const reimbursementSummary = {
     totalSubmitted: reimbursementRows.reduce((s,e)=>s+Number(e.employeePaid),0),
@@ -1205,10 +1106,10 @@ function computeSummaryForRange(from, to){
   };
 
   return {
-    from, to, expenses, revenue,
-    totalRevenue, totalExpenses, companyPaid, employeePaid, totalReimbursed,
-    employeeOutstanding, vendorOutstanding, netIncome: totalRevenue - totalExpenses,
-    byCategory, byEmployee, byRevenueType, reimbursementSummary,
+    from, to, expenses,
+    totalExpenses, companyPaid, employeePaid, totalReimbursed,
+    employeeOutstanding, vendorOutstanding,
+    byCategory, byEmployee, reimbursementSummary,
   };
 }
 
@@ -1222,7 +1123,6 @@ function generateSummary(){
 function renderSummaryResults(r){
   const catRows = Object.entries(r.byCategory);
   const empRows = Object.entries(r.byEmployee);
-  const revRows = Object.entries(r.byRevenueType);
 
   return `
     <div class="card" style="border-color:var(--purple);">
@@ -1234,14 +1134,12 @@ function renderSummaryResults(r){
         </div>
       </div>
       <div class="kpi-grid">
-        <div class="kpi positive"><div class="label">Total Revenue</div><div class="value">${formatBDT(r.totalRevenue)}</div></div>
         <div class="kpi negative"><div class="label">Total Expenses</div><div class="value">${formatBDT(r.totalExpenses)}</div></div>
         <div class="kpi"><div class="label">Company Paid</div><div class="value">${formatBDT(r.companyPaid)}</div></div>
         <div class="kpi"><div class="label">Employee Paid</div><div class="value">${formatBDT(r.employeePaid)}</div></div>
         <div class="kpi"><div class="label">Total Reimbursed</div><div class="value">${formatBDT(r.totalReimbursed)}</div></div>
         <div class="kpi warning"><div class="label">Employee Outstanding</div><div class="value">${formatBDT(r.employeeOutstanding)}</div></div>
         <div class="kpi warning"><div class="label">Vendor Outstanding</div><div class="value">${formatBDT(r.vendorOutstanding)}</div></div>
-        <div class="kpi ${r.netIncome>=0?'positive':'negative'}"><div class="label">Net Income</div><div class="value">${formatBDT(r.netIncome)}</div></div>
       </div>
     </div>
 
@@ -1270,30 +1168,12 @@ function renderSummaryResults(r){
         <div class="kpi"><div class="label">Pending / Reimbursed</div><div class="value" style="font-size:15px;">${r.reimbursementSummary.pendingCount} / ${r.reimbursementSummary.reimbursedCount}</div></div>
       </div>
     </div>
-
-    <div class="card">
-      <h3>Revenue Summary</h3>
-      <table><thead><tr><th>Revenue Type</th><th># of Transactions</th><th>Total Amount</th></tr></thead>
-      <tbody>
-        ${revRows.length ? revRows.map(([name,rr])=>`<tr><td>${name}</td><td>${rr.count}</td><td class="green"><b>${formatBDT(rr.amount)}</b></td></tr>`).join('') : `<tr><td colspan="3" class="empty">No revenue in this period.</td></tr>`}
-      </tbody></table>
-    </div>
-
-    <div class="card">
-      <h3>Profit &amp; Loss</h3>
-      <table><tbody>
-        <tr><td>Total Revenue</td><td style="text-align:right;" class="green"><b>${formatBDT(r.totalRevenue)}</b></td></tr>
-        <tr><td>Total Expenses</td><td style="text-align:right;" class="red"><b>${formatBDT(r.totalExpenses)}</b></td></tr>
-        <tr><td><b>Net Income</b></td><td style="text-align:right;" class="${r.netIncome>=0?'green':'red'}"><b>${formatBDT(r.netIncome)}</b></td></tr>
-      </tbody></table>
-    </div>
   `;
 }
 
 function buildSummaryReportHtml(r){
   const catRows = Object.entries(r.byCategory);
   const empRows = Object.entries(r.byEmployee);
-  const revRows = Object.entries(r.byRevenueType);
   const generatedAt = new Date().toLocaleString('en-GB');
 
   const catDetailHtml = (name) => {
@@ -1317,14 +1197,12 @@ function buildSummaryReportHtml(r){
   // browser-exported PDF, which cannot run the onclick JS the category
   // rows below use.
   const KPI_DEFS = [
-    { key:'totalRevenue', cls:'positive', label:'Total Revenue', value:r.totalRevenue, target:'#sec-revenue' },
     { key:'totalExpenses', cls:'negative', label:'Total Expenses', value:r.totalExpenses, target:'#sec-expenses' },
     { key:'companyPaid', cls:'', label:'Company Paid', value:r.companyPaid, target:'#sec-expenses' },
     { key:'employeePaid', cls:'', label:'Employee Paid', value:r.employeePaid, target:'#sec-employee' },
     { key:'totalReimbursed', cls:'positive', label:'Total Reimbursed', value:r.totalReimbursed, target:'#sec-reimbursement' },
     { key:'employeeOutstanding', cls:'warning', label:'Employee Outstanding', value:r.employeeOutstanding, target:'#sec-employee' },
     { key:'vendorOutstanding', cls:'warning', label:'Vendor Outstanding', value:r.vendorOutstanding, target:'#sec-expenses' },
-    { key:'netIncome', cls:r.netIncome>=0?'positive':'negative', label:'Net Income', value:r.netIncome, target:'#sec-pl' },
   ];
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>NidusLab Financial Summary — ${r.label}</title>
@@ -1424,22 +1302,6 @@ function buildSummaryReportHtml(r){
       <a class="back-to-top" href="#sec-executive">↑ Back to Summary</a>
     </section>
 
-    <section id="sec-revenue" class="report-section">
-      <h2>5. Revenue Summary</h2>
-      <div class="table-wrap"><table><thead><tr><th>Revenue Type</th><th># Transactions</th><th>Total Amount</th></tr></thead>
-      <tbody>${revRows.length ? revRows.map(([name,rr])=>`<tr><td>${name}</td><td>${rr.count}</td><td class="green"><b>${formatBDT(rr.amount)}</b></td></tr>`).join('') : '<tr><td colspan="3">No revenue in this period.</td></tr>'}</tbody></table></div>
-      <a class="back-to-top" href="#sec-executive">↑ Back to Summary</a>
-    </section>
-
-    <section id="sec-pl" class="report-section">
-      <h2>6. Profit &amp; Loss</h2>
-      <div class="table-wrap"><table><tbody>
-        <tr><td>Total Revenue</td><td class="green">${formatBDT(r.totalRevenue)}</td></tr>
-        <tr><td>Total Expenses</td><td class="red">${formatBDT(r.totalExpenses)}</td></tr>
-        <tr><td><b>Net Income</b></td><td class="${r.netIncome>=0?'green':'red'}"><b>${formatBDT(r.netIncome)}</b></td></tr>
-      </tbody></table></div>
-      <a class="back-to-top" href="#sec-executive">↑ Back to Summary</a>
-    </section>
 
     <div class="footer">Generated by the NidusLab Finance &amp; Accounting local demo. Prepared By: __________ &nbsp;&nbsp; Approved By: __________</div>
 
@@ -1470,8 +1332,8 @@ function downloadSummary(){
 }
 
 function renderAccounts(){
-  const groups = ['ASSET','LIABILITY','EQUITY','REVENUE','EXPENSE'];
-  const titles = {ASSET:'Assets', LIABILITY:'Liabilities', EQUITY:'Equity', REVENUE:'Revenue', EXPENSE:'Expenses'};
+  const groups = ['ASSET','LIABILITY','EQUITY','EXPENSE'];
+  const titles = {ASSET:'Assets', LIABILITY:'Liabilities', EQUITY:'Equity', EXPENSE:'Expenses'};
   return `
     <h1>Chart of Accounts</h1>
     <div class="card">
@@ -1782,63 +1644,6 @@ function deleteExpense(id){
   render();
 }
 
-function deleteRevenue(id){
-  const r = data.revenue.find(x=>x.id===id);
-  if (!r) return;
-  if (!confirm(`Delete this revenue entry — "${r.description||r.type}" (${formatBDT(r.amount)})? This cannot be undone.`)) return;
-  data.revenue = data.revenue.filter(x=>x.id!==id);
-  saveData();
-  render();
-}
-
-function prepRevenueModal(){
-  document.getElementById('rev_editing_id').value = '';
-  document.getElementById('revenueModalTitle').textContent = 'Add Revenue';
-  document.getElementById('revenueSaveBtn').textContent = 'Save Revenue';
-  document.getElementById('rev_date').value = todayStr();
-  document.getElementById('rev_customer').value='';
-  document.getElementById('rev_description').value='';
-  document.getElementById('rev_amount').value='';
-  document.getElementById('rev_type').value = 'Sales Revenue';
-  document.getElementById('rev_method').value = 'CASH';
-}
-function openEditRevenue(id){
-  const r = data.revenue.find(x=>x.id===id);
-  if (!r) return;
-  prepRevenueModal();
-  document.getElementById('rev_editing_id').value = id;
-  document.getElementById('revenueModalTitle').textContent = 'Edit Revenue';
-  document.getElementById('revenueSaveBtn').textContent = 'Save Changes';
-  document.getElementById('rev_date').value = r.date;
-  document.getElementById('rev_type').value = r.type;
-  document.getElementById('rev_customer').value = r.customer || '';
-  document.getElementById('rev_description').value = r.description || '';
-  document.getElementById('rev_amount').value = r.amount;
-  document.getElementById('rev_method').value = r.paymentMethod;
-  openModal('revenueModal');
-}
-function saveRevenue(){
-  const date = document.getElementById('rev_date').value;
-  const type = document.getElementById('rev_type').value;
-  const customer = document.getElementById('rev_customer').value.trim();
-  const description = document.getElementById('rev_description').value.trim();
-  const amount = Number(document.getElementById('rev_amount').value);
-  const paymentMethod = document.getElementById('rev_method').value;
-  if (!date || !amount || amount<=0){ alert('Please fill in date and a valid amount.'); return; }
-
-  const editingId = document.getElementById('rev_editing_id').value;
-  if (editingId) {
-    const idx = data.revenue.findIndex(x=>x.id===editingId);
-    if (idx !== -1) {
-      data.revenue[idx] = { ...data.revenue[idx], date, type, customer, description, amount, paymentMethod };
-    }
-  } else {
-    data.revenue.push({ id: uid(), date, type, customer, description, amount, paymentMethod, createdAt: Date.now() });
-  }
-  saveData();
-  closeModal('revenueModal');
-  render();
-}
 
 function showExpenseDetail(id){
   const e = data.expenses.find(x=>x.id===id);

@@ -745,21 +745,30 @@ function switchTab(id){ state.currentTab = id; closeSidebar(); render(); }
 function openSidebar(){ document.getElementById('sidebar').classList.add('open'); document.getElementById('overlayDim').classList.add('open'); }
 function closeSidebar(){ document.getElementById('sidebar').classList.remove('open'); document.getElementById('overlayDim').classList.remove('open'); }
 
-function computeKpis(expenses){
-  expenses = expenses || data.expenses;
-  const totalExpenses = expenses.reduce((s,e)=>s+Number(e.amount),0);
-  const companyPaid = expenses.reduce((s,e)=>s+Number(e.companyPaid),0);
-  const employeePaid = expenses.reduce((s,e)=>s+Number(e.employeePaid),0);
-  const totalReimbursed = expenses.reduce((s,e)=>s+Number(e.reimbursedAmount),0);
-  const employeeOutstanding = expenses.reduce((s,e)=>s+Number(e.employeeOutstanding),0);
-  const vendorOutstanding = expenses.reduce((s,e)=>s+Number(e.companyOutstanding),0);
+/**
+ * flowExpenses: expenses that happened *in* the selected period — drives
+ * Total Expenses / Company Paid / Employee Paid / Total Reimbursed.
+ * outstandingExpenses: every expense up through the end of the selected
+ * period — drives Employee/Vendor Outstanding, so an unpaid balance from
+ * an earlier month keeps showing (carries forward) until it's settled,
+ * instead of disappearing once the calendar moves to the next month.
+ */
+function computeKpis(flowExpenses, outstandingExpenses){
+  flowExpenses = flowExpenses || data.expenses;
+  outstandingExpenses = outstandingExpenses || flowExpenses;
+  const totalExpenses = flowExpenses.reduce((s,e)=>s+Number(e.amount),0);
+  const companyPaid = flowExpenses.reduce((s,e)=>s+Number(e.companyPaid),0);
+  const employeePaid = flowExpenses.reduce((s,e)=>s+Number(e.employeePaid),0);
+  const totalReimbursed = flowExpenses.reduce((s,e)=>s+Number(e.reimbursedAmount),0);
+  const employeeOutstanding = outstandingExpenses.reduce((s,e)=>s+Number(e.employeeOutstanding),0);
+  const vendorOutstanding = outstandingExpenses.reduce((s,e)=>s+Number(e.companyOutstanding),0);
   return { totalExpenses, companyPaid, employeePaid, totalReimbursed, employeeOutstanding, vendorOutstanding };
 }
 
 /* ---------------------------------------------------------
-   Dashboard period filter — "All Data" or a specific Month/Year
+   Dashboard period filter — "Month Wise" (default, current month) or "All Data"
    --------------------------------------------------------- */
-let dashboardState = { mode: 'all', month: new Date().getMonth(), year: new Date().getFullYear() };
+let dashboardState = { mode: 'month', month: new Date().getMonth(), year: new Date().getFullYear() };
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 function getDashboardRange(){
@@ -772,6 +781,11 @@ function dashboardFilteredExpenses(){
   const range = getDashboardRange();
   if (!range) return data.expenses;
   return data.expenses.filter(e => { const t = new Date(e.date).getTime(); return t >= range.from.getTime() && t <= range.to.getTime(); });
+}
+function dashboardOutstandingExpenses(){
+  const range = getDashboardRange();
+  if (!range) return data.expenses;
+  return data.expenses.filter(e => new Date(e.date).getTime() <= range.to.getTime());
 }
 function dashboardPeriodLabel(){
   return dashboardState.mode === 'month' ? `${MONTH_NAMES[dashboardState.month]} ${dashboardState.year}` : 'All Data';
@@ -821,9 +835,9 @@ function buildKpiHistory(key){
       });
     }));
   } else if (key === 'employeeOutstanding'){
-    expenses.filter(e=>e.employeeOutstanding>0).forEach(e => rows.push({ date: e.date, label: `Owed to ${e.employee} — ${e.description}`, amount: Number(e.employeeOutstanding), sign: '=' }));
+    dashboardOutstandingExpenses().filter(e=>e.employeeOutstanding>0).forEach(e => rows.push({ date: e.date, label: `Owed to ${e.employee} — ${e.description}`, amount: Number(e.employeeOutstanding), sign: '=' }));
   } else if (key === 'vendorOutstanding'){
-    expenses.filter(e=>e.companyOutstanding>0).forEach(e => rows.push({ date: e.date, label: `Owed to ${e.vendor||'vendor'} — ${e.description}`, amount: Number(e.companyOutstanding), sign: '=' }));
+    dashboardOutstandingExpenses().filter(e=>e.companyOutstanding>0).forEach(e => rows.push({ date: e.date, label: `Owed to ${e.vendor||'vendor'} — ${e.description}`, amount: Number(e.companyOutstanding), sign: '=' }));
   }
   return rows.sort((a,b)=> new Date(a.date) - new Date(b.date));
 }
@@ -862,7 +876,7 @@ function showKpiHistory(key){
 
 function renderDashboard(){
   const filteredExpenses = dashboardFilteredExpenses();
-  const k = computeKpis(filteredExpenses);
+  const k = computeKpis(filteredExpenses, dashboardOutstandingExpenses());
   const byCategory = {};
   filteredExpenses.forEach(e => { byCategory[e.category] = (byCategory[e.category]||0) + Number(e.amount); });
   const categories = Object.entries(byCategory).sort((a,b)=>b[1]-a[1]).slice(0,6);
@@ -889,6 +903,7 @@ function renderDashboard(){
           <select id="dash_year" onchange="applyDashboardMonth()" style="padding:8px 12px;border:1px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;">${dashboardYearOptionsHtml()}</select>
         ` : ''}
       </div>
+      ${dashboardState.mode==='month' ? `<div class="hint" style="margin-top:8px;">Total Expenses / Company Paid / Employee Paid / Total Reimbursed are for this month only. Employee &amp; Vendor Outstanding carry forward — an unpaid balance from an earlier month keeps showing here until it's paid off.</div>` : ''}
     </div>
 
     <div class="row" style="margin-bottom:6px;">

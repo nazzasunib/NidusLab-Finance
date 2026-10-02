@@ -186,7 +186,6 @@
   .page-head .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
   .month-row td{background:var(--purple-light);font-weight:700;color:var(--purple-deep);font-size:12px;}
   .total-row td{font-weight:800;background:var(--light);}
-  .badge-credit{background:var(--red-bg);color:#991B1B;}
   .badge-paid{background:var(--green-bg);color:#065F46;}
   .flow{display:grid;grid-template-columns:1fr auto;gap:7px 24px;font-size:13px;max-width:460px;}
   .flow .tot{border-top:1px solid var(--border);padding-top:7px;font-weight:800;color:var(--black);}
@@ -194,6 +193,7 @@
   .num{text-align:right;white-space:nowrap;}
   td.click{cursor:pointer;}
   .radio-group{flex-wrap:wrap;gap:10px 18px;}
+  .field .radio-group input, .field input[type=checkbox]{width:auto;padding:0;margin:0;}
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
   @media(max-width:900px){ .grid-2{grid-template-columns:1fr;} }
   .act-row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #f2f2f2;font-size:13px;cursor:pointer;}
@@ -378,20 +378,14 @@
         <label>Category</label>
         <select id="exp_category" onchange="onCategoryChange()"></select>
       </div>
-      <div class="field">
-        <label>Expense Account (Ledger)</label>
-        <select id="exp_account" onchange="toggleAccountOthers()"></select>
+      <div class="field" id="exp_method_field">
+        <label>Payment Method</label>
+        <select id="exp_method"></select>
       </div>
     </div>
-    <div class="field-row">
-      <div class="field hidden" id="exp_category_other_field">
-        <label>Specify Category</label>
-        <input type="text" id="exp_category_other" placeholder="Type category name">
-      </div>
-      <div class="field hidden" id="exp_account_other_field">
-        <label>Specify Account</label>
-        <input type="text" id="exp_account_other" placeholder="Type account name">
-      </div>
+    <div class="field hidden" id="exp_category_other_field">
+      <label>Specify Category</label>
+      <input type="text" id="exp_category_other" placeholder="Type category name">
     </div>
     <div class="field">
       <label>Description</label>
@@ -402,7 +396,6 @@
       <div class="radio-group">
         <label><input type="radio" name="exp_paidby" value="COMPANY" checked onchange="togglePaidBy()"> Company Fund (Cash in Hand)</label>
         <label><input type="radio" name="exp_paidby" value="EMPLOYEE" onchange="togglePaidBy()"> Employee (Own Pocket)</label>
-        <label><input type="radio" name="exp_paidby" value="CREDIT" onchange="togglePaidBy()"> Unpaid — Vendor Credit</label>
       </div>
     </div>
     <div class="field hidden" id="exp_employee_field">
@@ -411,17 +404,6 @@
         <select id="exp_employee" style="flex:1;" onchange="updateExpensePreview()"></select>
         <button type="button" class="btn secondary sm" onclick="addEmployeePrompt()" title="Add new employee">+ Add</button>
         <button type="button" class="btn secondary sm" onclick="removeEmployeePrompt()" title="Remove selected employee">Remove</button>
-      </div>
-    </div>
-    <div class="field-row">
-      <div class="field">
-        <label id="exp_vendor_label">Vendor / Supplier (optional)</label>
-        <input type="text" id="exp_vendor" list="vendorList" placeholder="e.g. ABC Printers" oninput="updateExpensePreview()">
-        <datalist id="vendorList"></datalist>
-      </div>
-      <div class="field" id="exp_method_field">
-        <label>Payment Method</label>
-        <select id="exp_method"></select>
       </div>
     </div>
     <div class="field">
@@ -481,7 +463,7 @@
   </div>
 </div>
 
-<!-- Payment Modal (Reimbursement / Vendor payment) -->
+<!-- Payment Modal (Reimbursement to employee) -->
 <div class="modal-overlay" id="paymentModal">
   <div class="modal">
     <span class="close-x" onclick="closeModal('paymentModal')">&times;</span>
@@ -532,7 +514,7 @@ const CATEGORY_ACCOUNT = {
   'Client Meeting':'5130','Campus Visit':'5090','Seminar':'5110','Training & Development':'5140','Miscellaneous':'5150',
 };
 const METHODS = { CASH:'Cash', BANK_TRANSFER:'Bank Transfer', BKASH:'bKash', NAGAD:'Nagad', CARD:'Card', OTHER:'Other' };
-const PAID_BY_LABEL = { COMPANY:'Company Fund', EMPLOYEE:'Employee', CREDIT:'Vendor Credit' };
+const PAID_BY_LABEL = { COMPANY:'Company Fund', EMPLOYEE:'Employee' };
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -635,9 +617,7 @@ const CHART_OF_ACCOUNTS = [
   {code:'1010',name:'Bank Account',type:'ASSET'},
   {code:'1020',name:'bKash / Mobile Wallet',type:'ASSET'},
   {code:'1030',name:'Accounts Receivable',type:'ASSET'},
-  {code:'1040',name:'Advance to Vendor',type:'ASSET'},
   {code:'1050',name:'Employee Advance',type:'ASSET'},
-  {code:'2000',name:'Accounts Payable (Vendors)',type:'LIABILITY'},
   {code:'2010',name:'Employee Reimbursement Payable',type:'LIABILITY'},
   {code:'2020',name:'Loan Payable',type:'LIABILITY'},
   {code:'2030',name:'Tax / VAT Payable',type:'LIABILITY'},
@@ -697,10 +677,10 @@ function byDateDesc(a,b){ return -byDateAsc(a,b); }
 /* ---------------------------------------------------------
    Data — load, migrate (v1 → v2), purge before DATA_START
    Data model (v2):
-     expenses[]: { id,date,category,accountCode,accountLabel,description,vendor,amount,
-                   paidBy:'COMPANY'|'EMPLOYEE'|'CREDIT', paymentMethod, employee, notes,
+     expenses[]: { id,date,category,accountCode,accountLabel,description,amount,
+                   paidBy:'COMPANY'|'EMPLOYEE', paymentMethod, employee, notes,
                    photo, photoName, createdAt,
-                   payments:[{id,kind:'REIMBURSE'|'VENDOR',date,amount,method,note,createdAt}] }
+                   payments:[{id,kind:'REIMBURSE',date,amount,method,note,createdAt}] }
      funds[]:    { id,date,type:'IN'|'OUT',description,amount,method,createdAt }
    Every KPI is DERIVED from these records (nothing is cached), so
    edits / deletes can never leave totals out of sync.
@@ -743,7 +723,7 @@ function migrateFromV1(){
     }
     d.expenses.push({
       id:e.id || uid(), date:e.date, category:e.category || 'Miscellaneous', accountCode:e.accountCode || '5150', accountLabel:e.accountLabel || null,
-      description:e.description || '', vendor:e.vendor || '', amount:num(e.amount), paidBy,
+      description:e.description || '', amount:num(e.amount), paidBy,
       paymentMethod:e.paymentMethod || 'CASH', employee: paidBy === 'EMPLOYEE' ? (e.employee || '') : null, notes:e.notes || '',
       photo:e.photo || e.othersPhoto || null, photoName: e.photo ? (e.photoName || null) : null,
       createdAt:e.createdAt || Date.now(), payments,
@@ -765,8 +745,12 @@ function normalizeData(d){
   d.funds = d.funds.filter(f => f && f.date && f.date >= DATA_START);
   d.expenses.forEach(e => {
     e.amount = num(e.amount);
-    if (!['COMPANY','EMPLOYEE','CREDIT'].includes(e.paidBy)) e.paidBy = 'COMPANY';
-    e.payments = (Array.isArray(e.payments) ? e.payments : []).filter(p => p && p.date >= DATA_START && num(p.amount) > 0);
+    if (e.paidBy !== 'EMPLOYEE') e.paidBy = 'COMPANY';           // vendor-credit option removed → treated as company-paid
+    if (e.paymentMethod === 'CREDIT') e.paymentMethod = 'CASH';
+    e.accountCode = CATEGORY_ACCOUNT[e.category] || e.accountCode || '5150';
+    e.payments = e.paidBy === 'EMPLOYEE'
+      ? (Array.isArray(e.payments) ? e.payments : []).filter(p => p && p.kind === 'REIMBURSE' && p.date >= DATA_START && num(p.amount) > 0)
+      : [];
   });
   return d;
 }
@@ -776,27 +760,24 @@ function normalizeData(d){
    --------------------------------------------------------- */
 function expCompany(e){ return e.paidBy === 'COMPANY' ? num(e.amount) : 0; }
 function expEmployee(e){ return e.paidBy === 'EMPLOYEE' ? num(e.amount) : 0; }
-function expCredit(e){ return e.paidBy === 'CREDIT' ? num(e.amount) : 0; }
 function paidSum(e, asOf = END){ return sumBy((e.payments||[]).filter(p => p.date <= asOf), p => p.amount); }
-/** Amount still owed for an expense as of a date (employee reimbursement or vendor bill). */
+/** Amount still owed to the employee for an expense as of a date. */
 function dueOf(e, asOf = END){
-  if (e.paidBy === 'COMPANY' || e.date > asOf) return 0;
+  if (e.paidBy !== 'EMPLOYEE' || e.date > asOf) return 0;
   return round2(Math.max(num(e.amount) - paidSum(e, asOf), 0));
 }
 function employeeDue(e, asOf){ return e.paidBy === 'EMPLOYEE' ? dueOf(e, asOf) : 0; }
-function vendorDue(e, asOf){ return e.paidBy === 'CREDIT' ? dueOf(e, asOf) : 0; }
-function vendorName(e){ return (e.vendor || '').trim() || 'Unnamed vendor'; }
 function employeeName(e){ return (e.employee || '').trim() || 'Unknown employee'; }
 
 function expStatus(e){
   if (e.paidBy === 'COMPANY') return { key:'PAID', label:'Paid', cls:'badge-paid' };
   const due = dueOf(e), paid = paidSum(e);
-  if (due <= 0) return { key:'SETTLED', label: e.paidBy === 'EMPLOYEE' ? 'Reimbursed' : 'Paid', cls:'badge-reimbursed' };
+  if (due <= 0) return { key:'SETTLED', label:'Reimbursed', cls:'badge-reimbursed' };
   if (paid > 0) return { key:'PARTIAL', label:'Partial', cls:'badge-partial' };
-  return e.paidBy === 'EMPLOYEE' ? { key:'DUE', label:'Reimb. Due', cls:'badge-pending' } : { key:'DUE', label:'Vendor Due', cls:'badge-credit' };
+  return { key:'DUE', label:'Reimb. Due', cls:'badge-pending' };
 }
 
-/** Cash book: every movement of company cash (fund in/out, company-paid expense, reimbursement, vendor payment). */
+/** Cash book: every movement of company cash (fund in/out, company-paid expense, reimbursement). */
 function cashLedger(){
   const L = [];
   data.funds.forEach(f => L.push({
@@ -811,7 +792,7 @@ function cashLedger(){
     });
     (e.payments || []).forEach(p => L.push({
       id:'p_'+p.id, ref:e.id, kind:p.kind, date:p.date, createdAt:p.createdAt || 0, method:p.method,
-      desc: p.kind === 'REIMBURSE' ? `Reimbursed to ${employeeName(e)} — ${e.description || e.category}` : `Paid to vendor ${vendorName(e)} — ${e.description || e.category}`,
+      desc: `Reimbursed to ${employeeName(e)} — ${e.description || e.category}`,
       inAmt:0, outAmt:num(p.amount),
     }));
   });
@@ -830,21 +811,18 @@ function computePeriod(from, to, label){
   data.expenses.forEach(e => (e.payments || []).forEach(p => { if (inR(p.date)) pays.push({ ...p, expense:e }); }));
   pays.sort(byDateAsc);
   const reimbList = pays.filter(p => p.kind === 'REIMBURSE');
-  const vendList = pays.filter(p => p.kind === 'VENDOR');
 
   const r = {
-    from, to, label, expenses, fundsInList, fundsOutList, reimbList, vendList,
+    from, to, label, expenses, fundsInList, fundsOutList, reimbList,
     openingCash: cashBalance(prev), closingCash: cashBalance(to),
     fundsIn: sumBy(fundsInList, f => f.amount), fundsOut: sumBy(fundsOutList, f => f.amount),
     totalExpenses: sumBy(expenses, e => e.amount),
-    companyPaid: sumBy(expenses, expCompany), employeePaid: sumBy(expenses, expEmployee), onCredit: sumBy(expenses, expCredit),
-    reimbursed: sumBy(reimbList, p => p.amount), vendorPaid: sumBy(vendList, p => p.amount),
+    companyPaid: sumBy(expenses, expCompany), employeePaid: sumBy(expenses, expEmployee),
+    reimbursed: sumBy(reimbList, p => p.amount),
     employeeOutstanding: sumBy(data.expenses, e => employeeDue(e, to)),
-    vendorOutstanding: sumBy(data.expenses, e => vendorDue(e, to)),
     openingEmployeeDue: sumBy(data.expenses, e => employeeDue(e, prev)),
-    openingVendorDue: sumBy(data.expenses, e => vendorDue(e, prev)),
   };
-  r.cashOut = round2(r.companyPaid + r.reimbursed + r.vendorPaid + r.fundsOut);
+  r.cashOut = round2(r.companyPaid + r.reimbursed + r.fundsOut);
 
   // Cash book rows for the period, with running balance
   let bal = r.openingCash;
@@ -853,8 +831,8 @@ function computePeriod(from, to, label){
   // By category
   const cat = {};
   expenses.forEach(e => {
-    const c = cat[e.category] || (cat[e.category] = { name:e.category, count:0, total:0, company:0, employee:0, credit:0, items:[] });
-    c.count++; c.total += num(e.amount); c.company += expCompany(e); c.employee += expEmployee(e); c.credit += expCredit(e); c.items.push(e);
+    const c = cat[e.category] || (cat[e.category] = { name:e.category, count:0, total:0, company:0, employee:0, items:[] });
+    c.count++; c.total += num(e.amount); c.company += expCompany(e); c.employee += expEmployee(e); c.items.push(e);
   });
   r.byCategory = Object.values(cat).sort((a,b) => b.total - a.total);
 
@@ -872,20 +850,6 @@ function computePeriod(from, to, label){
     };
   }).filter(x => x.opening || x.paid || x.reimbursed || x.closing);
 
-  // By vendor (credit purchases only)
-  const credAll = data.expenses.filter(e => e.paidBy === 'CREDIT');
-  const venNames = [...new Set(credAll.map(vendorName))].sort();
-  r.byVendor = venNames.map(n => {
-    const es = credAll.filter(e => vendorName(e) === n);
-    return {
-      name:n,
-      opening: sumBy(es, e => vendorDue(e, prev)),
-      purchased: sumBy(es.filter(e => inR(e.date)), e => e.amount),
-      paid: sumBy(vendList.filter(p => vendorName(p.expense) === n), p => p.amount),
-      closing: sumBy(es, e => vendorDue(e, to)),
-    };
-  }).filter(x => x.opening || x.purchased || x.paid || x.closing);
-
   return r;
 }
 
@@ -893,11 +857,11 @@ function computePeriod(from, to, label){
 function journalFor(e){
   const exp = e.accountCode || '5150';
   const entries = [];
-  const credit = e.paidBy === 'COMPANY' ? cashAccountForMethod(e.paymentMethod) : e.paidBy === 'EMPLOYEE' ? '2010' : '2000';
+  const credit = e.paidBy === 'COMPANY' ? cashAccountForMethod(e.paymentMethod) : '2010';
   entries.push({ date:e.date, memo:'Expense recorded', lines:[ { acc:exp, dr:num(e.amount), cr:0 }, { acc:credit, dr:0, cr:num(e.amount) } ] });
   (e.payments || []).forEach(p => entries.push({
-    date:p.date, memo: p.kind === 'REIMBURSE' ? 'Reimbursement paid to employee' : 'Payment to vendor',
-    lines:[ { acc: p.kind === 'REIMBURSE' ? '2010' : '2000', dr:num(p.amount), cr:0 }, { acc: cashAccountForMethod(p.method), dr:0, cr:num(p.amount) } ],
+    date:p.date, memo: 'Reimbursement paid to employee',
+    lines:[ { acc:'2010', dr:num(p.amount), cr:0 }, { acc: cashAccountForMethod(p.method), dr:0, cr:num(p.amount) } ],
   }));
   return entries;
 }
@@ -908,7 +872,7 @@ function accountLabelFor(e, code){
 
 /* ---------------------------------------------------------
    Period (month) selection — shared by Dashboard, Expenses,
-   Reimbursements, Vendor Payables and Company Funds.
+   Reimbursements and Company Funds.
    --------------------------------------------------------- */
 let period = { ym: (todayStr() < DATA_START ? DATA_START : todayStr()).slice(0,7) }; // 'YYYY-MM' or 'ALL'
 function periodRange(p = period){
@@ -960,7 +924,6 @@ const ICONS = {
   dashboard: '<svg viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.6"/><rect x="11" y="2" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.6"/><rect x="2" y="11" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.6"/><rect x="11" y="11" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.6"/></svg>',
   expenses: '<svg viewBox="0 0 20 20" fill="none"><path d="M5 2.2h10v14.6l-2-1.2-1.5 1.2-1.5-1.2-1.5 1.2-1.5-1.2-2 1.2V2.2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.3 6.8h5.4M7.3 9.6h5.4M7.3 12.4h3.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
   reimbursements: '<svg viewBox="0 0 20 20" fill="none"><circle cx="7" cy="7.5" r="4.2" stroke="currentColor" stroke-width="1.6"/><circle cx="13" cy="12.5" r="4.2" stroke="currentColor" stroke-width="1.6"/></svg>',
-  vendors: '<svg viewBox="0 0 20 20" fill="none"><path d="M3 8l1.4-4.6h11.2L17 8" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M3 8h14v1.2a2.3 2.3 0 01-4.6 0 2.3 2.3 0 01-4.8 0A2.3 2.3 0 013 9.2V8z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M4.5 11.5v5h11v-5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
   summary: '<svg viewBox="0 0 20 20" fill="none"><rect x="3" y="3" width="14" height="14" rx="2.2" stroke="currentColor" stroke-width="1.6"/><path d="M6.5 7.6h7M6.5 10.4h7M6.5 13.2h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
   accounts: '<svg viewBox="0 0 20 20" fill="none"><path d="M4.2 3.8c0-.9.7-1.6 1.6-1.6H16v13.6H5.8c-.9 0-1.6.7-1.6 1.6V3.8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M4.2 15.8c0-.9.7-1.6 1.6-1.6H16" stroke="currentColor" stroke-width="1.5"/></svg>',
   funds: '<svg viewBox="0 0 20 20" fill="none"><rect x="2.5" y="4" width="15" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M2.5 8h15M6 12h2M13 12h1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
@@ -970,7 +933,6 @@ const NAV = [
   {id:'expenses', label:'Expenses', icon:ICONS.expenses},
   {id:'companyFunds', label:'Company Funds', icon:ICONS.funds},
   {id:'reimbursements', label:'Reimbursements', icon:ICONS.reimbursements},
-  {id:'vendors', label:'Vendor Payables', icon:ICONS.vendors},
   {id:'summary', label:'Summary', icon:ICONS.summary},
   {id:'accounts', label:'Chart of Accounts', icon:ICONS.accounts},
 ];
@@ -984,7 +946,6 @@ function render(){
   if (t === 'dashboard') c.innerHTML = renderDashboard();
   else if (t === 'expenses') c.innerHTML = renderExpenses();
   else if (t === 'reimbursements') c.innerHTML = renderReimbursements();
-  else if (t === 'vendors') c.innerHTML = renderVendors();
   else if (t === 'summary') c.innerHTML = renderSummary();
   else if (t === 'companyFunds') c.innerHTML = renderCompanyFunds();
   else if (t === 'accounts') c.innerHTML = renderAccounts();
@@ -1020,7 +981,6 @@ function renderDashboard(){
     ...r.fundsInList.map(f => ({ date:f.date, createdAt:f.createdAt, tag:'Fund In', cash:true, label:esc(f.description||'Fund received'), amount:num(f.amount), note:'Cash in', click:`switchTab('companyFunds')` })),
     ...r.fundsOutList.map(f => ({ date:f.date, createdAt:f.createdAt, tag:'Fund Out', cash:true, label:esc(f.description||'Fund returned'), amount:-num(f.amount), note:'Cash out', click:`switchTab('companyFunds')` })),
     ...r.reimbList.map(p => ({ date:p.date, createdAt:p.createdAt, tag:'Reimbursed', cash:true, label:`${esc(employeeName(p.expense))} — ${esc(p.expense.description||p.expense.category)}`, amount:-num(p.amount), note:'Cash out', click:`showExpenseDetail('${p.expense.id}')` })),
-    ...r.vendList.map(p => ({ date:p.date, createdAt:p.createdAt, tag:'Vendor Paid', cash:true, label:`${esc(vendorName(p.expense))} — ${esc(p.expense.description||p.expense.category)}`, amount:-num(p.amount), note:'Cash out', click:`showExpenseDetail('${p.expense.id}')` })),
   ].sort(byDateDesc).slice(0,10);
 
   return `
@@ -1040,12 +1000,11 @@ function renderDashboard(){
     <div class="kpi-grid">
       ${kpiCard({ label:'Cash in Hand (All Time)', value:cashNow, cls: cashNow<0?'negative':'positive', sub:'Company fund balance after all expenses &amp; payments', onclick:`switchTab('companyFunds')` })}
       ${kpiCard({ label:'Funds Received', value:r.fundsIn, cls:'info', sub:`Money received from company · ${pr.label}`, onclick:`showKpiHistory('fundsIn')` })}
-      ${kpiCard({ label:'Total Expenses', value:r.totalExpenses, cls:'negative', sub:`Company ${formatBDT(r.companyPaid)} · Employee ${formatBDT(r.employeePaid)}${r.onCredit?` · Credit ${formatBDT(r.onCredit)}`:''}`, onclick:`showKpiHistory('totalExpenses')` })}
+      ${kpiCard({ label:'Total Expenses', value:r.totalExpenses, cls:'negative', sub:`Company ${formatBDT(r.companyPaid)} · Employee ${formatBDT(r.employeePaid)}`, onclick:`showKpiHistory('totalExpenses')` })}
       ${kpiCard({ label:'Company Paid', value:r.companyPaid, sub:'Expenses paid from company fund', onclick:`showKpiHistory('companyPaid')` })}
       ${kpiCard({ label:'Employee Paid', value:r.employeePaid, sub:'Paid by employees from own pocket', onclick:`showKpiHistory('employeePaid')` })}
       ${kpiCard({ label:'Total Reimbursed', value:r.reimbursed, cls:'positive', sub:'Paid back to employees', onclick:`showKpiHistory('reimbursed')` })}
       ${kpiCard({ label:'Employee Payable', value:r.employeeOutstanding, cls:'warning', sub:`Employee Outstanding · still owed to employees (${asOfText(pr)})`, onclick:`showKpiHistory('employeeDue')` })}
-      ${kpiCard({ label:'Accounts Payable', value:r.vendorOutstanding, cls:'warning', sub:`Vendor Outstanding · unpaid vendor bills (${asOfText(pr)})`, onclick:`showKpiHistory('vendorDue')` })}
     </div>
     <p class="subtitle" style="margin-top:-12px;">💡 Click any card to see how the number was calculated.</p>
 
@@ -1085,7 +1044,6 @@ function cashFlowHtml(r){
     ${line('Add: Funds Received', r.fundsIn, '+ ', 'green')}
     ${line('Less: Company-paid Expenses', r.companyPaid, '− ', 'red')}
     ${line('Less: Reimbursements to Employees', r.reimbursed, '− ', 'red')}
-    ${r.vendorPaid ? line('Less: Payments to Vendors', r.vendorPaid, '− ', 'red') : ''}
     ${r.fundsOut ? line('Less: Funds Returned / Withdrawn', r.fundsOut, '− ', 'red') : ''}
     <div class="tot">Closing Cash Balance</div><div class="tot num ${r.closingCash<0?'red':''}">${formatBDT(r.closingCash)}</div>
   </div>
@@ -1102,7 +1060,7 @@ function buildKpiHistory(key){
   const T = {
     fundsIn: { title:'Funds Received', note:`Money received from company in ${pr.label}.`, running:true,
       rows: r.fundsInList.map(f => ({ date:f.date, label:esc(f.description||'Fund received') + ` <span class="muted">(${METHODS[f.method]||f.method})</span>`, amount:num(f.amount) })) },
-    totalExpenses: { title:'Total Expenses', note:`All expenses dated in ${pr.label} (paid by company, employee or on credit).`, running:true,
+    totalExpenses: { title:'Total Expenses', note:`All expenses dated in ${pr.label} (paid by company or by employees).`, running:true,
       rows: r.expenses.map(e => exRow(e, num(e.amount), ` <span class="muted">· ${PAID_BY_LABEL[e.paidBy]}${e.paidBy==='EMPLOYEE'?' ('+esc(employeeName(e))+')':''}</span>`)) },
     companyPaid: { title:'Company Paid', note:'Expenses paid directly from the company fund — each one reduced Cash in Hand.', running:true,
       rows: r.expenses.filter(e => e.paidBy==='COMPANY').map(e => exRow(e, num(e.amount))) },
@@ -1112,8 +1070,6 @@ function buildKpiHistory(key){
       rows: r.reimbList.map(p => ({ date:p.date, label:`${esc(employeeName(p.expense))} — ${esc(p.expense.description||p.expense.category)} <span class="muted">(${METHODS[p.method]||p.method})</span>`, amount:num(p.amount), click:`closeModal('historyModal');showExpenseDetail('${p.expense.id}')` })) },
     employeeDue: { title:'Employee Payable (Outstanding)', note:`Still owed to employees ${asOfText(pr)}. Includes unpaid amounts carried forward from earlier months.`, running:true,
       rows: data.expenses.filter(e => employeeDue(e, pr.to) > 0).sort(byDateAsc).map(e => exRow(e, employeeDue(e, pr.to), ` <span class="muted">· owed to ${esc(employeeName(e))}</span>`)) },
-    vendorDue: { title:'Accounts Payable (Vendor Outstanding)', note:`Unpaid vendor bills ${asOfText(pr)}. Record a purchase as "Unpaid — Vendor Credit" to track it here.`, running:true,
-      rows: data.expenses.filter(e => vendorDue(e, pr.to) > 0).sort(byDateAsc).map(e => exRow(e, vendorDue(e, pr.to), ` <span class="muted">· ${esc(vendorName(e))}</span>`)) },
   };
   return T[key];
 }
@@ -1144,18 +1100,17 @@ function showKpiHistory(key){
 function expenseRowHtml(e){
   const st = expStatus(e);
   const due = dueOf(e);
-  const who = e.paidBy === 'EMPLOYEE' ? esc(employeeName(e)) : e.paidBy === 'CREDIT' ? 'Vendor Credit' : 'Company Fund';
+  const who = e.paidBy === 'EMPLOYEE' ? esc(employeeName(e)) : 'Company Fund';
   const click = `onclick="showExpenseDetail('${e.id}')"`;
   return `<tr>
     <td class="click" ${click} style="white-space:nowrap;">${formatDate(e.date)}</td>
     <td class="click" ${click}>${esc(e.category)}</td>
     <td class="click" ${click} style="max-width:220px;overflow:hidden;text-overflow:ellipsis;">${esc(e.description||'—')}${e.photo?' 📎':''}</td>
-    <td class="click" ${click}>${esc(e.vendor||'—')}</td>
     <td class="click" ${click}>${who}</td>
     <td class="click num" ${click}><b>${formatBDT(e.amount)}</b></td>
     <td class="click" ${click}><span class="badge-status ${st.cls}">${st.label}</span>${due>0?`<div class="amber" style="font-size:11.5px;margin-top:3px;">Due ${formatBDT(due)}</div>`:''}</td>
     <td><div class="row" style="gap:6px;flex-wrap:nowrap;">
-      ${due>0 ? `<button class="btn sm" onclick="openPaymentModal('EXPENSE', '${e.id}')">${e.paidBy==='EMPLOYEE'?'Reimburse':'Pay Vendor'}</button>` : ''}
+      ${due>0 ? `<button class="btn sm" onclick="openPaymentModal('EXPENSE', '${e.id}')">Reimburse</button>` : ''}
       <button class="btn sm outline" onclick="openEditExpense('${e.id}')">Edit</button>
       <button class="btn sm danger" onclick="deleteExpense('${e.id}')">Delete</button>
     </div></td>
@@ -1166,12 +1121,12 @@ function renderExpenses(){
   const r = computePeriod(pr.from, pr.to, pr.label);
   const list = [...r.expenses].sort(byDateDesc);
   let body = '';
-  if (!list.length) body = `<tr><td colspan="8" class="empty">No expenses recorded for ${pr.label}.</td></tr>`;
+  if (!list.length) body = `<tr><td colspan="7" class="empty">No expenses recorded for ${pr.label}.</td></tr>`;
   else if (pr.all){
     const groups = {};
     list.forEach(e => (groups[e.date.slice(0,7)] = groups[e.date.slice(0,7)] || []).push(e));
     body = Object.keys(groups).sort().reverse().map(ym => `
-      <tr class="month-row"><td colspan="5">${monthLabel(ym)} · ${groups[ym].length} expense(s)</td><td class="num">${formatBDT(sumBy(groups[ym], e=>e.amount))}</td><td colspan="2"></td></tr>
+      <tr class="month-row"><td colspan="4">${monthLabel(ym)} · ${groups[ym].length} expense(s)</td><td class="num">${formatBDT(sumBy(groups[ym], e=>e.amount))}</td><td colspan="2"></td></tr>
       ${groups[ym].map(expenseRowHtml).join('')}`).join('');
   } else body = list.map(expenseRowHtml).join('');
 
@@ -1184,13 +1139,12 @@ function renderExpenses(){
       ${kpiCard({ label:'Total Expenses', value:r.totalExpenses, cls:'negative', sub:`${r.expenses.length} expense(s)` })}
       ${kpiCard({ label:'Company Paid', value:r.companyPaid, sub:'From company fund' })}
       ${kpiCard({ label:'Employee Paid', value:r.employeePaid, sub:'From own pocket' })}
-      ${kpiCard({ label:'On Vendor Credit', value:r.onCredit, sub:'Bought now, pay later' })}
     </div>
     <div class="card" style="padding:0;overflow-x:auto;">
       <table>
-        <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Vendor</th><th>Paid By</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Paid By</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead>
         <tbody>${body}
-          ${list.length ? `<tr class="total-row"><td colspan="5">Total — ${pr.label}</td><td class="num">${formatBDT(r.totalExpenses)}</td><td colspan="2"></td></tr>` : ''}
+          ${list.length ? `<tr class="total-row"><td colspan="4">Total — ${pr.label}</td><td class="num">${formatBDT(r.totalExpenses)}</td><td colspan="2"></td></tr>` : ''}
         </tbody>
       </table>
     </div>`;
@@ -1254,62 +1208,9 @@ function renderReimbursements(){
 }
 
 /* ---------------------------------------------------------
-   Vendor Payables (Accounts Payable)
-   --------------------------------------------------------- */
-function renderVendors(){
-  const pr = periodRange();
-  const r = computePeriod(pr.from, pr.to, pr.label);
-  const prev = addDays(pr.from, -1);
-  const rows = data.expenses.filter(e => e.paidBy === 'CREDIT')
-    .map(e => ({ e, carried: e.date < pr.from && vendorDue(e, prev) > 0, inPeriod: e.date >= pr.from && e.date <= pr.to }))
-    .filter(x => x.inPeriod || x.carried).sort((a,b) => byDateAsc(a.e,b.e));
-  return `
-    <div class="page-head">
-      <div><h1>Vendor Payables</h1><p class="subtitle" style="margin-bottom:0;">Accounts Payable — purchases recorded as "Unpaid — Vendor Credit". Showing: <b>${pr.label}</b>.</p></div>
-      <div class="actions">${periodPicker()}<button class="btn" onclick="openExpenseModal('CREDIT')">+ Add Credit Purchase</button></div>
-    </div>
-    <div class="kpi-grid">
-      ${!pr.all ? kpiCard({ label:'Opening Payable', value:r.openingVendorDue, cls:'warning', sub:'Carried from earlier months' }) : ''}
-      ${kpiCard({ label:'Purchased on Credit', value:r.onCredit, sub:`In ${pr.label}` })}
-      ${kpiCard({ label:'Paid to Vendors', value:r.vendorPaid, cls:'positive', sub:`Paid from cash in ${pr.label}` })}
-      ${kpiCard({ label:'Accounts Payable', value:r.vendorOutstanding, cls:'warning', sub:`Still owed, ${asOfText(pr)}` })}
-    </div>
-    <div class="card" style="padding:0;overflow-x:auto;">
-      <div style="padding:16px 20px 4px;"><h3 style="margin:0;">By Vendor</h3></div>
-      <table>
-        <thead><tr><th>Vendor</th>${!pr.all?'<th class="num">Opening Due</th>':''}<th class="num">Purchased</th><th class="num">Paid</th><th class="num">Closing Due</th><th></th></tr></thead>
-        <tbody>${r.byVendor.length ? r.byVendor.map(x => {
-          const dueNow = sumBy(data.expenses.filter(e => e.paidBy==='CREDIT' && vendorName(e)===x.name), e => vendorDue(e));
-          return `<tr><td><b>${esc(x.name)}</b></td>${!pr.all?`<td class="num">${formatBDT(x.opening)}</td>`:''}<td class="num">${formatBDT(x.purchased)}</td><td class="num green">${formatBDT(x.paid)}</td><td class="num ${x.closing>0?'amber':'green'}">${formatBDT(x.closing)}</td>
-            <td>${dueNow>0?`<button class="btn sm" onclick="openPaymentModal('VENDOR', ${jsArg(x.name)})">Pay ${formatBDT(dueNow)}</button>`:'<span class="muted" style="font-size:12px;">Settled</span>'}</td></tr>`;
-        }).join('') : `<tr><td colspan="6" class="empty">No vendor credit purchases for this period.</td></tr>`}</tbody>
-      </table>
-    </div>
-    <div class="card" style="padding:0;overflow-x:auto;">
-      <div style="padding:16px 20px 4px;"><h3 style="margin:0;">Bill-wise Detail</h3></div>
-      <table>
-        <thead><tr><th>Date</th><th>Vendor</th><th>Description</th><th class="num">Bill</th><th class="num">Paid</th><th class="num">Due</th><th>Status</th><th></th></tr></thead>
-        <tbody>${rows.length ? rows.map(({e, carried}) => {
-          const st = expStatus(e); const due = dueOf(e);
-          return `<tr${carried?' style="background:var(--amber-bg);"':''}>
-            <td style="white-space:nowrap;">${formatDate(e.date)}${carried?'<div><span class="tag">Carried fwd</span></div>':''}</td>
-            <td>${esc(vendorName(e))}</td>
-            <td class="click" onclick="showExpenseDetail('${e.id}')">${esc(e.description||e.category)}</td>
-            <td class="num">${formatBDT(e.amount)}</td><td class="num green">${formatBDT(paidSum(e))}</td><td class="num amber">${formatBDT(due)}</td>
-            <td><span class="badge-status ${st.cls}">${st.label}</span></td>
-            <td><div class="row" style="gap:6px;flex-wrap:nowrap;">
-              ${due>0?`<button class="btn sm" onclick="openPaymentModal('EXPENSE', '${e.id}')">Pay</button>`:''}
-              <button class="btn sm outline" onclick="showExpenseDetail('${e.id}')">View</button>
-            </div></td></tr>`;
-        }).join('') : `<tr><td colspan="8" class="empty">Nothing to show for this period.</td></tr>`}</tbody>
-      </table>
-    </div>`;
-}
-
-/* ---------------------------------------------------------
    Company Funds — Cash Book
    --------------------------------------------------------- */
-const KIND_TAG = { FUND:'Fund', EXPENSE:'Expense', REIMBURSE:'Reimbursement', VENDOR:'Vendor Payment' };
+const KIND_TAG = { FUND:'Fund', EXPENSE:'Expense', REIMBURSE:'Reimbursement' };
 function renderCompanyFunds(){
   const pr = periodRange();
   const r = computePeriod(pr.from, pr.to, pr.label);
@@ -1317,14 +1218,14 @@ function renderCompanyFunds(){
   const rows = [...r.cashRows].reverse();
   return `
     <div class="page-head">
-      <div><h1>Company Funds — Cash Book</h1><p class="subtitle" style="margin-bottom:0;">Every taka in and out of the company fund. Company-paid expenses, reimbursements and vendor payments are deducted automatically (<span class="tag">Auto</span>). Showing: <b>${pr.label}</b>.</p></div>
+      <div><h1>Company Funds — Cash Book</h1><p class="subtitle" style="margin-bottom:0;">Every taka in and out of the company fund. Company-paid expenses and reimbursements are deducted automatically (<span class="tag">Auto</span>). Showing: <b>${pr.label}</b>.</p></div>
       <div class="actions">${periodPicker()}<button class="btn success" onclick="openFundModal()">+ Add Money</button></div>
     </div>
     <div class="kpi-grid">
       ${kpiCard({ label:'Cash in Hand (All Time)', value:cashNow, cls: cashNow<0?'negative':'positive', sub:'Current company fund balance' })}
       ${!pr.all ? kpiCard({ label:'Opening Balance', value:r.openingCash, cls:'info', sub:`On ${formatDate(pr.from)}` }) : ''}
       ${kpiCard({ label:'Cash In', value:r.fundsIn, cls:'positive', sub:'Funds received' })}
-      ${kpiCard({ label:'Cash Out', value:r.cashOut, cls:'negative', sub:'Expenses + reimbursements + vendor payments' })}
+      ${kpiCard({ label:'Cash Out', value:r.cashOut, cls:'negative', sub:'Company-paid expenses + reimbursements' })}
       ${!pr.all ? kpiCard({ label:'Closing Balance', value:r.closingCash, cls: r.closingCash<0?'negative':'', sub:`On ${formatDate(pr.to)}` }) : ''}
     </div>
     <div class="card" style="padding:0;overflow-x:auto;">
@@ -1395,12 +1296,10 @@ function prepExpenseModal(){
   const dateEl = document.getElementById('exp_date');
   dateEl.min = DATA_START; dateEl.value = todayStr() < DATA_START ? DATA_START : todayStr();
   document.getElementById('exp_category').innerHTML = EXPENSE_CATEGORIES.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('') + `<option value="OTHERS">Others</option>`;
-  document.getElementById('exp_account').innerHTML = CHART_OF_ACCOUNTS.filter(a=>a.type==='EXPENSE').map(a=>`<option value="${a.code}">${a.code} · ${a.name}</option>`).join('') + `<option value="OTHERS">Others</option>`;
   document.getElementById('exp_method').innerHTML = methodOptions('CASH');
-  document.getElementById('vendorList').innerHTML = [...new Set(data.expenses.map(e => (e.vendor||'').trim()).filter(Boolean))].sort().map(v => `<option value="${esc(v)}">`).join('');
   refreshEmployeeDropdown();
-  ['exp_description','exp_vendor','exp_amount','exp_notes','exp_category_other','exp_account_other','exp_photo'].forEach(id => document.getElementById(id).value = '');
-  ['exp_photo_preview','exp_photo_filename','exp_photo_remove','exp_employee_field','exp_category_other_field','exp_account_other_field'].forEach(id => document.getElementById(id).classList.add('hidden'));
+  ['exp_description','exp_amount','exp_notes','exp_category_other','exp_photo'].forEach(id => document.getElementById(id).value = '');
+  ['exp_photo_preview','exp_photo_filename','exp_photo_remove','exp_employee_field','exp_category_other_field'].forEach(id => document.getElementById(id).classList.add('hidden'));
   document.querySelector('input[name="exp_paidby"][value="COMPANY"]').checked = true;
   window._expPhotoData = null; window._expPhotoName = null;
   onCategoryChange();
@@ -1416,16 +1315,12 @@ function openEditExpense(id){
   document.getElementById('expenseSaveBtn').textContent = 'Save Changes';
   document.getElementById('exp_date').value = e.date;
   document.getElementById('exp_description').value = e.description || '';
-  document.getElementById('exp_vendor').value = e.vendor || '';
   document.getElementById('exp_amount').value = e.amount;
   document.getElementById('exp_notes').value = e.notes || '';
   document.getElementById('exp_method').value = e.paymentMethod || 'CASH';
   const catSelect = document.getElementById('exp_category');
   if ([...catSelect.options].some(o => o.value === e.category)) catSelect.value = e.category;
   else { catSelect.value = 'OTHERS'; document.getElementById('exp_category_other').value = e.category; document.getElementById('exp_category_other_field').classList.remove('hidden'); }
-  const accSelect = document.getElementById('exp_account');
-  if (e.accountLabel){ accSelect.value = 'OTHERS'; document.getElementById('exp_account_other').value = e.accountLabel; document.getElementById('exp_account_other_field').classList.remove('hidden'); }
-  else accSelect.value = e.accountCode;
   document.querySelector(`input[name="exp_paidby"][value="${e.paidBy}"]`).checked = true;
   if (e.paidBy === 'EMPLOYEE'){
     if (e.employee && !data.employees.includes(e.employee)) { data.employees.push(e.employee); saveData(); }
@@ -1441,16 +1336,10 @@ function openEditExpense(id){
 function onCategoryChange(){
   const v = document.getElementById('exp_category').value;
   document.getElementById('exp_category_other_field').classList.toggle('hidden', v !== 'OTHERS');
-  if (CATEGORY_ACCOUNT[v]) { document.getElementById('exp_account').value = CATEGORY_ACCOUNT[v]; document.getElementById('exp_account_other_field').classList.add('hidden'); }
-}
-function toggleAccountOthers(){
-  document.getElementById('exp_account_other_field').classList.toggle('hidden', document.getElementById('exp_account').value !== 'OTHERS');
 }
 function togglePaidBy(){
   const p = getPaidBy();
   document.getElementById('exp_employee_field').classList.toggle('hidden', p !== 'EMPLOYEE');
-  document.getElementById('exp_method_field').classList.toggle('hidden', p === 'CREDIT');
-  document.getElementById('exp_vendor_label').textContent = p === 'CREDIT' ? 'Vendor / Supplier (required)' : 'Vendor / Supplier (optional)';
   updateExpensePreview();
 }
 function refreshEmployeeDropdown(selectValue){
@@ -1505,25 +1394,19 @@ function updateExpensePreview(){
     const after = round2(cashNow + adj - amount);
     html += `<div>Company Paid: <b>+${formatBDT(amount)}</b></div><div>Cash in Hand: ${formatBDT(cashNow)} → <b class="${after<0?'red':''}">${formatBDT(after)}</b></div>`;
     if (after < 0) html += `<div class="warn-box">Not enough cash in hand. Add money first, or choose "Employee" if someone paid from their own pocket.</div>`;
-  } else if (p === 'EMPLOYEE'){
+  } else {
     const emp = document.getElementById('exp_employee').value || 'employee';
     html += `<div>Employee Paid: <b>+${formatBDT(amount)}</b> (${esc(emp)})</div><div>Employee Payable: <b>+${formatBDT(amount)}</b> — ${esc(emp)} will get this back when reimbursed.</div><div class="muted">Cash in Hand does not change now (${formatBDT(cashNow)}).</div>`;
-  } else {
-    const v = document.getElementById('exp_vendor').value.trim() || 'vendor';
-    html += `<div>Accounts Payable: <b>+${formatBDT(amount)}</b> — owed to ${esc(v)}.</div><div class="muted">Cash in Hand does not change until you pay the vendor (${formatBDT(cashNow)}).</div>`;
   }
   box.innerHTML = html;
 }
 function saveExpense(){
   const date = document.getElementById('exp_date').value;
   let category = document.getElementById('exp_category').value;
-  let accountCode = document.getElementById('exp_account').value;
-  let accountLabel = null;
   const description = document.getElementById('exp_description').value.trim();
-  const vendor = document.getElementById('exp_vendor').value.trim();
   const amount = round2(num(document.getElementById('exp_amount').value));
   const paidBy = getPaidBy();
-  const paymentMethod = paidBy === 'CREDIT' ? 'CREDIT' : document.getElementById('exp_method').value;
+  const paymentMethod = document.getElementById('exp_method').value;
   const employee = document.getElementById('exp_employee').value;
   const notes = document.getElementById('exp_notes').value.trim();
 
@@ -1532,25 +1415,20 @@ function saveExpense(){
     if (!custom){ alert('Please specify the "Others" category.'); return; }
     category = custom;
   }
-  if (accountCode === 'OTHERS'){
-    const custom = document.getElementById('exp_account_other').value.trim();
-    if (!custom){ alert('Please specify the "Others" account.'); return; }
-    accountLabel = custom; accountCode = '5150';
-  }
   if (!date || amount <= 0){ alert('Please enter a date and an amount greater than zero.'); return; }
   if (date < DATA_START){ alert(`Books start on ${formatDate(DATA_START)}. Please choose a date on or after that.`); return; }
   if (paidBy === 'EMPLOYEE' && !employee){ alert('Please select which employee paid.'); return; }
-  if (paidBy === 'CREDIT' && !vendor){ alert('Please enter the vendor name for a credit (unpaid) purchase.'); return; }
 
   const editingId = document.getElementById('exp_editing_id').value;
-  const fields = { date, category, accountCode, accountLabel, description, vendor, amount, paidBy, paymentMethod,
+  const accountCode = CATEGORY_ACCOUNT[category] || '5150'; // ledger account is picked automatically from the category
+  const fields = { date, category, accountCode, accountLabel:null, description, amount, paidBy, paymentMethod,
     employee: paidBy === 'EMPLOYEE' ? employee : null, notes, photo: window._expPhotoData || null, photoName: window._expPhotoData ? (window._expPhotoName || null) : null };
 
   if (editingId){
     const e = data.expenses.find(x => x.id === editingId);
     if (!e) return;
     let payments = e.payments || [];
-    const kindNeeded = paidBy === 'EMPLOYEE' ? 'REIMBURSE' : paidBy === 'CREDIT' ? 'VENDOR' : null;
+    const kindNeeded = paidBy === 'EMPLOYEE' ? 'REIMBURSE' : null;
     const sameParty = paidBy !== e.paidBy ? false : paidBy === 'EMPLOYEE' ? employee === e.employee : true;
     if (payments.length && (!kindNeeded || !sameParty || payments.some(p => p.kind !== kindNeeded))){
       if (!confirm(`This expense already has ${formatBDT(paidSum(e))} paid back (${payments.length} payment(s)). Changing "Paid By" will delete those payment records and put that money back into Cash in Hand. Continue?`)) return;
@@ -1665,18 +1543,15 @@ function deleteFund(id){
 }
 
 /* ---------------------------------------------------------
-   Payments — reimbursement to employee / payment to vendor
-   Modes: EXPENSE (one expense), EMPLOYEE (all dues of one employee, oldest first),
-          VENDOR (all dues of one vendor, oldest first)
+   Payments — reimbursement to employee
+   Modes: EXPENSE (one expense), EMPLOYEE (all dues of one employee, oldest first)
    --------------------------------------------------------- */
 let paymentCtx = null;
 function empDueList(name, onOrBefore = END){ return data.expenses.filter(e => e.paidBy==='EMPLOYEE' && employeeName(e)===name && employeeDue(e) > 0 && e.date <= onOrBefore).sort(byDateAsc); }
-function venDueList(name, onOrBefore = END){ return data.expenses.filter(e => e.paidBy==='CREDIT' && vendorName(e)===name && vendorDue(e) > 0 && e.date <= onOrBefore).sort(byDateAsc); }
 function paymentTargets(dateLimit = END){
   if (!paymentCtx) return [];
   if (paymentCtx.mode === 'EXPENSE'){ const e = data.expenses.find(x => x.id === paymentCtx.ref); return e && e.date <= dateLimit && dueOf(e) > 0 ? [e] : []; }
-  if (paymentCtx.mode === 'EMPLOYEE') return empDueList(paymentCtx.ref, dateLimit);
-  return venDueList(paymentCtx.ref, dateLimit);
+  return empDueList(paymentCtx.ref, dateLimit);
 }
 function allocatePayments(list, amount, { date, method, note, kind }){
   let left = round2(amount);
@@ -1695,15 +1570,14 @@ function openPaymentModal(mode, ref){
   paymentCtx = { mode, ref };
   const all = paymentTargets();
   if (!all.length){ alert('Nothing is due.'); return; }
-  const isEmp = all[0].paidBy === 'EMPLOYEE';
-  paymentCtx.kind = isEmp ? 'REIMBURSE' : 'VENDOR';
+  paymentCtx.kind = 'REIMBURSE';
   const due = sumBy(all, e => dueOf(e));
-  const who = isEmp ? employeeName(all[0]) : vendorName(all[0]);
-  document.getElementById('paymentModalTitle').textContent = isEmp ? `Reimburse ${who}` : `Pay Vendor — ${who}`;
-  document.getElementById('paymentSaveBtn').textContent = isEmp ? 'Record Reimbursement' : 'Record Vendor Payment';
+  const who = employeeName(all[0]);
+  document.getElementById('paymentModalTitle').textContent = `Reimburse ${who}`;
+  document.getElementById('paymentSaveBtn').textContent = 'Record Reimbursement';
   document.getElementById('payment_summary').innerHTML = `
     ${mode === 'EXPENSE' ? `<div><b>${esc(all[0].description || all[0].category)}</b> · ${formatDate(all[0].date)}</div>
-      <div>${isEmp?'Paid by employee':'Bill amount'}: ${formatBDT(all[0].amount)} · Already paid back: ${formatBDT(paidSum(all[0]))}</div>`
+      <div>Paid by employee: ${formatBDT(all[0].amount)} · Already paid back: ${formatBDT(paidSum(all[0]))}</div>`
       : `<div>${all.length} unpaid expense(s) — oldest is paid first.</div>`}
     <div>Outstanding: <b>${formatBDT(due)}</b></div>`;
   const dateEl = document.getElementById('payment_date');
@@ -1724,7 +1598,7 @@ function updatePaymentPreview(){
   const after = round2(cashNow - amount);
   document.getElementById('payment_preview').innerHTML = amount > 0 ? `<div class="calc-box">
     <div>Cash in Hand: ${formatBDT(cashNow)} → <b class="${after<0?'red':''}">${formatBDT(after)}</b></div>
-    <div>${paymentCtx.kind==='REIMBURSE'?'Employee Payable':'Accounts Payable'}: ${formatBDT(due)} → <b>${formatBDT(Math.max(due-amount,0))}</b></div>
+    <div>Employee Payable: ${formatBDT(due)} → <b>${formatBDT(Math.max(due-amount,0))}</b></div>
     ${amount > due ? `<div class="warn-box">Amount is more than what is due (${formatBDT(due)}) for expenses dated on or before ${formatDate(date)}.</div>` : ''}
     ${after < 0 ? `<div class="warn-box">Not enough cash in hand — add money first.</div>` : ''}
   </div>` : '';
@@ -1768,12 +1642,11 @@ function showExpenseDetail(id){
       ${kpiCard({ label:'Amount', value:e.amount })}
       ${kpiCard({ label:'Company Paid', value:expCompany(e) })}
       ${kpiCard({ label:'Employee Paid', value:expEmployee(e) })}
-      ${e.paidBy==='CREDIT' ? kpiCard({ label:'On Credit', value:expCredit(e) }) : ''}
-      ${e.paidBy!=='COMPANY' ? kpiCard({ label: e.paidBy==='EMPLOYEE'?'Reimbursed':'Paid to Vendor', value:paidSum(e), cls:'positive' }) : ''}
+      ${e.paidBy!=='COMPANY' ? kpiCard({ label:'Reimbursed', value:paidSum(e), cls:'positive' }) : ''}
       ${e.paidBy!=='COMPANY' ? kpiCard({ label:'Outstanding', value:due, cls:'warning' }) : ''}
     </div>
     <div class="row" style="margin-bottom:14px;">
-      ${due>0?`<button class="btn sm" onclick="openPaymentModal('EXPENSE', '${e.id}')">${e.paidBy==='EMPLOYEE'?'Reimburse':'Pay Vendor'}</button>`:''}
+      ${due>0?`<button class="btn sm" onclick="openPaymentModal('EXPENSE', '${e.id}')">Reimburse</button>`:''}
       <button class="btn sm outline" onclick="openEditExpense('${e.id}')">Edit</button>
       <button class="btn sm danger" onclick="deleteExpense('${e.id}')">Delete</button>
     </div>
@@ -1781,15 +1654,13 @@ function showExpenseDetail(id){
     <div class="card">
       <h3>Details</h3>
       <div style="font-size:13px;line-height:1.9;">
-        <div><span class="muted">Vendor:</span> ${esc(e.vendor||'—')}</div>
         <div><span class="muted">Paid By:</span> ${PAID_BY_LABEL[e.paidBy]}${e.paidBy==='EMPLOYEE'?' — '+esc(employeeName(e)):''}</div>
-        ${e.paidBy!=='CREDIT'?`<div><span class="muted">Payment Method:</span> ${METHODS[e.paymentMethod]||esc(e.paymentMethod)}</div>`:''}
-        <div><span class="muted">Expense Account:</span> ${esc(accountLabelFor(e, e.accountCode))}</div>
+        <div><span class="muted">Payment Method:</span> ${METHODS[e.paymentMethod]||esc(e.paymentMethod)}</div>
         ${e.notes ? `<div><span class="muted">Notes:</span> ${esc(e.notes)}</div>` : ''}
       </div>
     </div>
     ${(e.payments||[]).length ? `<div class="card">
-      <h3>${e.paidBy==='EMPLOYEE'?'Reimbursement Payments':'Vendor Payments'}</h3>
+      <h3>Reimbursement Payments</h3>
       <table><thead><tr><th>Date</th><th>Method</th><th>Note</th><th class="num">Amount</th><th></th></tr></thead><tbody>
       ${[...e.payments].sort(byDateAsc).map(p => `<tr><td>${formatDate(p.date)}</td><td>${METHODS[p.method]||esc(p.method)}</td><td>${esc(p.note||'—')}</td><td class="num green">${formatBDT(p.amount)}</td>
         <td><button class="btn sm danger" onclick="deletePayment('${e.id}','${p.id}')">Delete</button></td></tr>`).join('')}
@@ -1876,17 +1747,13 @@ function reportBody(r){
     { l:'Company Paid', v:r.companyPaid, s:'Paid from company fund', c:'', t:'sec-register' },
     { l:'Employee Paid', v:r.employeePaid, s:'Paid from own pocket', c:'', t:'sec-employee' },
     { l:'Total Reimbursed', v:r.reimbursed, s:'Paid back to employees', c:'pos', t:'sec-employee' },
-    ...(r.onCredit || r.vendorPaid || r.vendorOutstanding ? [
-      { l:'Purchased on Credit', v:r.onCredit, s:'Vendor bills (pay later)', c:'', t:'sec-vendor' },
-      { l:'Paid to Vendors', v:r.vendorPaid, s:'Against vendor bills', c:'', t:'sec-vendor' } ] : []),
     ...(r.fundsOut ? [{ l:'Funds Returned', v:r.fundsOut, s:'Cash returned / withdrawn', c:'', t:'sec-cash' }] : []),
     { l:'Closing Cash', v:r.closingCash, s:'Cash in hand at end', c: r.closingCash<0?'neg':'pos', t:'sec-cash' },
     { l:'Employee Payable', v:r.employeeOutstanding, s:'Employee outstanding at end', c:'warn', t:'sec-employee' },
-    { l:'Accounts Payable', v:r.vendorOutstanding, s:'Vendor outstanding at end', c:'warn', t:'sec-vendor' },
   ];
   const back = `<a class="back" href="#sec-exec">↑ Back to Executive Summary</a>`;
-  const statusTxt = e => { const s = expStatus(e); const d = dueOf(e, r.to); return d > 0 ? `<span class="am">${s.label === 'Partial' ? 'Partial' : (e.paidBy==='EMPLOYEE'?'Reimb. due':'Vendor due')} ${B(d)}</span>` : `<span class="g">${e.paidBy==='COMPANY'?'Paid':e.paidBy==='EMPLOYEE'?'Reimbursed':'Paid'}</span>`; };
-  const paidByTxt = e => e.paidBy === 'EMPLOYEE' ? `Employee — ${esc(employeeName(e))}` : e.paidBy === 'CREDIT' ? 'Vendor credit' : 'Company fund';
+  const statusTxt = e => { const d = dueOf(e, r.to); return d > 0 ? `<span class="am">${paidSum(e, r.to) > 0 ? 'Partial' : 'Reimb. due'} ${B(d)}</span>` : `<span class="g">${e.paidBy==='COMPANY'?'Paid':'Reimbursed'}</span>`; };
+  const paidByTxt = e => e.paidBy === 'EMPLOYEE' ? `Employee — ${esc(employeeName(e))}` : 'Company fund';
   const catId = i => `cat-${i}`;
 
   return `
@@ -1906,8 +1773,7 @@ function reportBody(r){
         <a href="#sec-category">3. Expenses by Category</a>
         <a href="#sec-register">4. Expense Register</a>
         <a href="#sec-employee">5. Employee Reimbursements</a>
-        <a href="#sec-vendor">6. Vendor Payables</a>
-        <a href="#sec-glossary">7. Terms Used</a>
+        <a href="#sec-glossary">6. Terms Used</a>
       </div>
     </section>
 
@@ -1918,7 +1784,6 @@ function reportBody(r){
         <tr><td>Add: Funds Received from Company</td><td class="r g">+ ${B(r.fundsIn)}</td></tr>
         <tr><td>Less: Company-paid Expenses</td><td class="r rd">− ${B(r.companyPaid)}</td></tr>
         <tr><td>Less: Reimbursements Paid to Employees</td><td class="r rd">− ${B(r.reimbursed)}</td></tr>
-        <tr><td>Less: Payments to Vendors</td><td class="r rd">− ${B(r.vendorPaid)}</td></tr>
         <tr><td>Less: Funds Returned / Withdrawn</td><td class="r rd">− ${B(r.fundsOut)}</td></tr>
         <tr class="tot"><td>Closing Cash Balance (Cash in Hand)</td><td class="r">${B(r.closingCash)}</td></tr>
       </tbody></table></div>
@@ -1936,10 +1801,10 @@ function reportBody(r){
     <section id="sec-category">
       <h2>3. Expenses by Category <span class="hint-click">— click a category to see its expenses</span></h2>
       <div class="tw"><table>
-        <thead><tr><th>Category</th><th class="r">#</th><th class="r">Total</th><th class="r">Company Paid</th><th class="r">Employee Paid</th><th class="r">On Credit</th></tr></thead>
-        <tbody>${r.byCategory.length ? r.byCategory.map((c,i) => `<tr><td><a class="lnk" href="#${catId(i)}">▸ ${esc(c.name)}</a></td><td class="r">${c.count}</td><td class="r"><b>${B(c.total)}</b></td><td class="r">${B(c.company)}</td><td class="r">${B(c.employee)}</td><td class="r">${B(c.credit)}</td></tr>`).join('')
-          + `<tr class="tot"><td>Total</td><td class="r">${r.expenses.length}</td><td class="r">${B(r.totalExpenses)}</td><td class="r">${B(r.companyPaid)}</td><td class="r">${B(r.employeePaid)}</td><td class="r">${B(r.onCredit)}</td></tr>`
-          : '<tr><td colspan="6" class="mut">No expenses in this period.</td></tr>'}</tbody></table></div>
+        <thead><tr><th>Category</th><th class="r">#</th><th class="r">Total</th><th class="r">Company Paid</th><th class="r">Employee Paid</th></tr></thead>
+        <tbody>${r.byCategory.length ? r.byCategory.map((c,i) => `<tr><td><a class="lnk" href="#${catId(i)}">▸ ${esc(c.name)}</a></td><td class="r">${c.count}</td><td class="r"><b>${B(c.total)}</b></td><td class="r">${B(c.company)}</td><td class="r">${B(c.employee)}</td></tr>`).join('')
+          + `<tr class="tot"><td>Total</td><td class="r">${r.expenses.length}</td><td class="r">${B(r.totalExpenses)}</td><td class="r">${B(r.companyPaid)}</td><td class="r">${B(r.employeePaid)}</td></tr>`
+          : '<tr><td colspan="5" class="mut">No expenses in this period.</td></tr>'}</tbody></table></div>
       ${back}
     </section>
 
@@ -1948,10 +1813,10 @@ function reportBody(r){
       ${r.byCategory.length ? r.byCategory.map((c,i) => `
         <h3 id="${catId(i)}">${esc(c.name)} — ${B(c.total)} <a class="back" style="margin:0 0 0 8px;font-weight:600;" href="#sec-category">↑ categories</a></h3>
         <div class="tw"><table>
-          <thead><tr><th>Date</th><th>Description</th><th>Vendor</th><th>Paid By</th><th class="r">Amount</th><th>Status</th></tr></thead>
+          <thead><tr><th>Date</th><th>Description</th><th>Paid By</th><th class="r">Amount</th><th>Status</th></tr></thead>
           <tbody>${c.items.map(e => `<tr><td>${formatDate(e.date)}</td>
             <td>${esc(e.description||'—')}${e.notes?`<div class="mut" style="font-size:11px;">${esc(e.notes)}</div>`:''}${e.photo && String(e.photo).startsWith('data:image') ? `<img class="thumb" src="${e.photo}">` : (e.photo ? `<div class="mut" style="font-size:11px;">📎 ${esc(e.photoName||'attachment')}</div>` : '')}</td>
-            <td>${esc(e.vendor||'—')}</td><td>${paidByTxt(e)}</td><td class="r"><b>${B(e.amount)}</b></td><td>${statusTxt(e)}</td></tr>`).join('')}</tbody>
+            <td>${paidByTxt(e)}</td><td class="r"><b>${B(e.amount)}</b></td><td>${statusTxt(e)}</td></tr>`).join('')}</tbody>
         </table></div>`).join('') : '<p class="mut">No expenses in this period.</p>'}
       ${back}
     </section>
@@ -1970,26 +1835,15 @@ function reportBody(r){
       ${back}
     </section>
 
-    <section id="sec-vendor">
-      <h2>6. Vendor Payables (Accounts Payable)</h2>
-      <div class="tw"><table>
-        <thead><tr><th>Vendor</th><th class="r">Opening Due</th><th class="r">Purchased on Credit</th><th class="r">Paid</th><th class="r">Closing Due</th></tr></thead>
-        <tbody>${r.byVendor.length ? r.byVendor.map(x => `<tr><td><b>${esc(x.name)}</b></td><td class="r">${B(x.opening)}</td><td class="r">${B(x.purchased)}</td><td class="r g">${B(x.paid)}</td><td class="r ${x.closing>0?'am':'g'}">${B(x.closing)}</td></tr>`).join('')
-          + `<tr class="tot"><td>Total</td><td class="r">${B(r.openingVendorDue)}</td><td class="r">${B(r.onCredit)}</td><td class="r">${B(r.vendorPaid)}</td><td class="r">${B(r.vendorOutstanding)}</td></tr>`
-          : '<tr><td colspan="5" class="mut">No vendor credit purchases.</td></tr>'}</tbody></table></div>
-      ${back}
-    </section>
-
     <section id="sec-glossary">
-      <h2>7. Terms Used</h2>
+      <h2>6. Terms Used</h2>
       <dl class="gl">
-        <dt>Cash in Hand (Funds in Hand)</dt><dd>Company money currently held = Funds Received − Company-paid Expenses − Reimbursements − Vendor Payments − Funds Returned.</dd>
-        <dt>Total Expenses</dt><dd>All expenses dated in the period, no matter who paid (Company Paid + Employee Paid + Purchased on Credit).</dd>
+        <dt>Cash in Hand (Funds in Hand)</dt><dd>Company money currently held = Funds Received − Company-paid Expenses − Reimbursements − Funds Returned.</dd>
+        <dt>Total Expenses</dt><dd>All expenses dated in the period, no matter who paid (Company Paid + Employee Paid).</dd>
         <dt>Company Paid</dt><dd>Expenses paid directly from the company fund; they reduce Cash in Hand immediately.</dd>
         <dt>Employee Paid</dt><dd>Expenses an employee paid from their own pocket; recorded as Employee Payable until reimbursed.</dd>
         <dt>Total Reimbursed</dt><dd>Money paid back to employees from the company fund during the period.</dd>
         <dt>Employee Payable (Employee Outstanding)</dt><dd>Amount the company still owes employees at the end of the period (carried forward).</dd>
-        <dt>Accounts Payable (Vendor Outstanding)</dt><dd>Unpaid vendor bills at the end of the period.</dd>
       </dl>
       ${back}
     </section>

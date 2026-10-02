@@ -977,20 +977,91 @@ function renderExpenses(){
   `;
 }
 
+/* ---------------------------------------------------------
+   Reimbursements period filter — "Month Wise" (default) or "All Data".
+   In Month Wise mode, an older expense that wasn't fully reimbursed
+   before the month started carries forward into that month.
+   --------------------------------------------------------- */
+let reimbState = { mode: 'month', month: new Date().getMonth(), year: new Date().getFullYear() };
+
+/** Total reimbursed for an expense from payments dated before `beforeDateStr` (YYYY-MM-DD). */
+function reimbursedBefore(e, beforeDateStr){
+  const payments = e.reimbursementPayments;
+  if (!payments || !payments.length) return e.date < beforeDateStr ? Number(e.reimbursedAmount)||0 : 0; // legacy rows without payment history
+  return payments.filter(p => p.date < beforeDateStr).reduce((s,p)=>s+Number(p.amount),0);
+}
+function reimbursementRowsForPeriod(){
+  const all = data.expenses.filter(e => e.paidBy === 'EMPLOYEE').sort((a,b)=>a.date.localeCompare(b.date) || a.createdAt-b.createdAt);
+  if (reimbState.mode !== 'month') return all.map(e => ({ e, carried: false }));
+  const pad = n => String(n).padStart(2,'0');
+  const start = `${reimbState.year}-${pad(reimbState.month+1)}-01`;
+  const next = reimbState.month === 11 ? `${reimbState.year+1}-01-01` : `${reimbState.year}-${pad(reimbState.month+2)}-01`;
+  return all.flatMap(e => {
+    if (e.date >= start && e.date < next) return [{ e, carried: false }];
+    if (e.date < start && reimbursedBefore(e, start) < Number(e.employeePaid)) return [{ e, carried: true }];
+    return [];
+  });
+}
+function setReimbMode(mode){ reimbState.mode = mode; render(); }
+function applyReimbMonth(){
+  reimbState.month = parseInt(document.getElementById('reimb_month').value);
+  reimbState.year = parseInt(document.getElementById('reimb_year').value);
+  render();
+}
+function shiftReimbMonth(delta){
+  const d = new Date(reimbState.year, reimbState.month + delta, 1);
+  reimbState.month = d.getMonth(); reimbState.year = d.getFullYear();
+  render();
+}
+
 function renderReimbursements(){
-  const rows = data.expenses.filter(e => e.paidBy === 'EMPLOYEE');
+  const periodRows = reimbursementRowsForPeriod();
+  const rows = periodRows.map(r => r.e);
+  const isMonth = reimbState.mode === 'month';
+  const periodLabel = isMonth ? `${MONTH_NAMES[reimbState.month]} ${reimbState.year}` : 'All Data';
+  const newRows = periodRows.filter(r => !r.carried).map(r => r.e);
+  const carriedRows = periodRows.filter(r => r.carried).map(r => r.e);
+  const monthStart = `${reimbState.year}-${String(reimbState.month+1).padStart(2,'0')}-01`;
+  const sum = (list, key) => list.reduce((s,e)=>s+Number(e[key]),0);
+  const yearOpts = (() => { const c = new Date().getFullYear(); let o=''; for (let y=c-3; y<=c+1; y++) o += `<option value="${y}" ${y===reimbState.year?'selected':''}>${y}</option>`; return o; })();
+  const selStyle = 'padding:8px 12px;border:1px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;';
   return `
     <h1>Reimbursements</h1>
-    <p class="subtitle">Automatically created whenever an expense is marked "Paid By: Employee".</p>
+    <p class="subtitle">Automatically created whenever an expense is marked "Paid By: Employee". Showing: <b>${periodLabel}</b>.</p>
+
+    <div class="card" style="padding:14px 18px;margin-bottom:16px;">
+      <div class="row" style="gap:18px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;">
+          <input type="radio" name="reimb_mode" value="month" ${isMonth?'checked':''} onchange="setReimbMode('month')"> Month Wise
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;">
+          <input type="radio" name="reimb_mode" value="all" ${!isMonth?'checked':''} onchange="setReimbMode('all')"> All Data
+        </label>
+        ${isMonth ? `
+          <button class="btn sm outline" onclick="shiftReimbMonth(-1)" title="Previous month">&lsaquo;</button>
+          <select id="reimb_month" onchange="applyReimbMonth()" style="${selStyle}">${MONTH_NAMES.map((m,i)=>`<option value="${i}" ${i===reimbState.month?'selected':''}>${m}</option>`).join('')}</select>
+          <select id="reimb_year" onchange="applyReimbMonth()" style="${selStyle}">${yearOpts}</select>
+          <button class="btn sm outline" onclick="shiftReimbMonth(1)" title="Next month">&rsaquo;</button>
+        ` : ''}
+      </div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi"><div class="label">${isMonth?'Submitted This Month':'Total Submitted'}</div><div class="value">${formatBDT(sum(newRows,'employeePaid'))}</div></div>
+      ${isMonth ? `<div class="kpi warning"><div class="label">Carried From Earlier</div><div class="value">${formatBDT(carriedRows.reduce((s,e)=>s+Number(e.employeePaid)-reimbursedBefore(e, monthStart),0))}</div></div>` : ''}
+      <div class="kpi positive"><div class="label">Reimbursed</div><div class="value">${formatBDT(sum(rows,'reimbursedAmount'))}</div></div>
+      <div class="kpi warning"><div class="label">Outstanding Now</div><div class="value">${formatBDT(sum(rows,'employeeOutstanding'))}</div></div>
+    </div>
+
     <div class="card" style="padding:0;overflow-x:auto;">
       <table>
         <thead><tr><th>Date</th><th>Employee</th><th>Description</th><th>Paid</th><th>Reimbursed</th><th>Outstanding</th><th>Status</th><th></th></tr></thead>
         <tbody>
-          ${rows.length ? rows.map(e=>{
+          ${periodRows.length ? periodRows.map(({e, carried})=>{
             const status = e.employeeOutstanding <= 0 ? 'REIMBURSED' : (e.reimbursedAmount>0 ? 'PARTIAL' : 'PENDING');
             const badgeClass = status==='REIMBURSED'?'badge-reimbursed':status==='PARTIAL'?'badge-partial':'badge-pending';
-            return `<tr>
-              <td>${formatDate(e.date)}</td>
+            return `<tr${carried?' style="background:var(--amber-bg);"':''}>
+              <td>${formatDate(e.date)}${carried ? `<div><span class="tag" title="Not cleared in its own month — carried forward">Carried fwd</span></div>` : ''}</td>
               <td>${e.employee}</td>
               <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;">${e.description||'—'}</td>
               <td>${formatBDT(e.employeePaid)}</td>
@@ -1003,7 +1074,7 @@ function renderReimbursements(){
                 <button class="btn sm danger" onclick="deleteExpense('${e.id}')">Delete</button>
               </td>
             </tr>`;
-          }).join('') : `<tr><td colspan="8" class="empty">No employee-paid expenses yet.</td></tr>`}
+          }).join('') : `<tr><td colspan="8" class="empty">${isMonth ? 'No reimbursements for this month.' : 'No employee-paid expenses yet.'}</td></tr>`}
         </tbody>
       </table>
     </div>
@@ -1368,9 +1439,35 @@ function renderAccounts(){
   `;
 }
 
+/**
+ * Full fund ledger: manual fund transactions plus automatic deductions —
+ * every company-paid expense and every reimbursement paid to an employee
+ * comes out of Funds In Hand. Auto rows are derived from the expenses, so
+ * editing/deleting an expense or correcting a reimbursement updates the
+ * balance automatically.
+ */
+function companyFundLedger(){
+  const ledger = data.companyFunds.map(t => ({...t, auto:false}));
+  data.expenses.forEach(e => {
+    if (Number(e.companyPaid) > 0) ledger.push({
+      id:'exp_'+e.id, auto:true, type:'SPENT', date:e.date, createdAt:e.createdAt,
+      description:`Expense — ${e.category}: ${e.description||''}`, amount:Number(e.companyPaid),
+    });
+    (e.reimbursementPayments||[]).forEach((p,i) => {
+      const amt = Number(p.amount);
+      if (!amt) return;
+      ledger.push({
+        id:`reimb_${e.id}_${i}`, auto:true, type: amt>0 ? 'SPENT' : 'RECEIVED', date:p.date, createdAt:p.createdAt||0,
+        description:`${amt>0?'Reimbursed':'Reimbursement correction'} — ${e.employee}: ${e.description||''}`, amount:Math.abs(amt),
+      });
+    });
+  });
+  return ledger.sort((a,b)=>a.date.localeCompare(b.date) || a.createdAt-b.createdAt);
+}
 function companyFundTotals(){
-  const received = data.companyFunds.filter(t=>t.type==='RECEIVED').reduce((sum,t)=>sum+Number(t.amount),0);
-  const spent = data.companyFunds.filter(t=>t.type==='SPENT').reduce((sum,t)=>sum+Number(t.amount),0);
+  const ledger = companyFundLedger();
+  const received = ledger.filter(t=>t.type==='RECEIVED').reduce((sum,t)=>sum+Number(t.amount),0);
+  const spent = ledger.filter(t=>t.type==='SPENT').reduce((sum,t)=>sum+Number(t.amount),0);
   return { received, spent, balance: received-spent };
 }
 function companyFundBalance(){ return companyFundTotals().balance; }
@@ -1380,13 +1477,13 @@ function escapeHtml(value){
 function renderCompanyFunds(){
   const totals = companyFundTotals();
   let runningBalance = 0;
-  const transactions = [...data.companyFunds].sort((a,b)=>a.date.localeCompare(b.date) || a.createdAt-b.createdAt).map(t=>{
+  const transactions = companyFundLedger().map(t=>{
     runningBalance += t.type==='RECEIVED' ? Number(t.amount) : -Number(t.amount);
     return {...t, balanceAfter:runningBalance};
   }).reverse();
   return `
     <h1>Company Funds</h1>
-    <p class="subtitle">Track money received from the company and expenses paid from that fund.</p>
+    <p class="subtitle">Track money received from the company. Company-paid expenses and reimbursement payments are deducted automatically (marked <span class="tag">Auto</span>).</p>
     <div class="kpi-grid">
       <div class="kpi positive"><div class="label">Total Received</div><div class="value">${formatBDT(totals.received)}</div></div>
       <div class="kpi negative"><div class="label">Total Spent</div><div class="value">${formatBDT(totals.spent)}</div></div>
@@ -1395,7 +1492,7 @@ function renderCompanyFunds(){
     <div class="card">
       <h3>Record Fund Transaction</h3>
       <div class="field-row">
-        <div class="field"><label>Transaction</label><select id="fund_type"><option value="RECEIVED">Received from Company</option><option value="SPENT">Spent from Fund</option></select></div>
+        <div class="field"><label>Transaction</label><select id="fund_type"><option value="RECEIVED">Received from Company</option><option value="SPENT">Other Payment (Spent from Fund)</option></select></div>
         <div class="field"><label>Date</label><input type="date" id="fund_date" value="${todayStr()}"></div>
       </div>
       <div class="field-row">
@@ -1409,11 +1506,11 @@ function renderCompanyFunds(){
         <thead><tr><th>Date</th><th>Description</th><th>Received</th><th>Spent</th><th>Balance After</th><th></th></tr></thead>
         <tbody>${transactions.length ? transactions.map(t=>`
           <tr>
-            <td>${formatDate(t.date)}</td><td>${escapeHtml(t.description)}</td>
+            <td>${formatDate(t.date)}</td><td>${escapeHtml(t.description)}${t.auto?' <span class="tag">Auto</span>':''}</td>
             <td class="green">${t.type==='RECEIVED'?formatBDT(t.amount):'—'}</td>
             <td class="red">${t.type==='SPENT'?formatBDT(t.amount):'—'}</td>
             <td class="${t.balanceAfter<0?'red':'amber'}">${formatBDT(t.balanceAfter)}</td>
-            <td><button class="btn sm danger" onclick="deleteCompanyFundTransaction('${t.id}')" title="Delete transaction">Delete</button></td>
+            <td>${t.auto ? '<span class="muted" style="font-size:12px;">Edit via Expenses / Reimbursements</span>' : `<button class="btn sm danger" onclick="deleteCompanyFundTransaction('${t.id}')" title="Delete transaction">Delete</button>`}</td>
           </tr>`).join('') : '<tr><td colspan="6" class="empty">No fund transactions recorded yet.</td></tr>'}</tbody>
       </table>
     </div>

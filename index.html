@@ -594,6 +594,7 @@ const ICONS = {
   reimbursements: '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="7" cy="7.5" r="4.2" stroke="currentColor" stroke-width="1.6"/><circle cx="13" cy="12.5" r="4.2" stroke="currentColor" stroke-width="1.6"/></svg>',
   summary: '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="14" height="14" rx="2.2" stroke="currentColor" stroke-width="1.6"/><path d="M6.5 7.6h7M6.5 10.4h7M6.5 13.2h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
   accounts: '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4.2 3.8c0-.9.7-1.6 1.6-1.6H16v13.6H5.8c-.9 0-1.6.7-1.6 1.6V3.8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M4.2 15.8c0-.9.7-1.6 1.6-1.6H16" stroke="currentColor" stroke-width="1.5"/></svg>',
+  funds: '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2.5" y="4" width="15" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M2.5 8h15M6 12h2M13 12h1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
 };
 
 const NAV = [
@@ -601,6 +602,7 @@ const NAV = [
   {id:'expenses', label:'Expenses', icon:ICONS.expenses},
   {id:'reimbursements', label:'Reimbursements', icon:ICONS.reimbursements},
   {id:'summary', label:'Summary', icon:ICONS.summary},
+  {id:'companyFunds', label:'Company Funds', icon:ICONS.funds},
   {id:'accounts', label:'Chart of Accounts', icon:ICONS.accounts},
 ];
 
@@ -612,6 +614,7 @@ function loadData(){
   if (raw) {
     const parsed = JSON.parse(raw);
     if (!parsed.employees) parsed.employees = [...DEFAULT_EMPLOYEES]; // migrate older saved data
+    if (!parsed.companyFunds) parsed.companyFunds = [];
     return parsed;
   }
   return seedData();
@@ -637,7 +640,7 @@ function formatDate(d){
    Seed data — matches the sample scenarios from the spec
    --------------------------------------------------------- */
 function seedData(){
-  const seeded = { expenses: [], revenue: [], employees: [...DEFAULT_EMPLOYEES] };
+  const seeded = { expenses: [], revenue: [], employees: [...DEFAULT_EMPLOYEES], companyFunds: [] };
   const transport = makeExpense({
     date: todayStr(), category: 'Transport', accountCode:'5020',
     description: 'Transport to client meeting', amount: 500,
@@ -730,6 +733,7 @@ function render(){
   else if (state.currentTab === 'expenses') c.innerHTML = renderExpenses();
   else if (state.currentTab === 'reimbursements') c.innerHTML = renderReimbursements();
   else if (state.currentTab === 'summary') c.innerHTML = renderSummary();
+  else if (state.currentTab === 'companyFunds') c.innerHTML = renderCompanyFunds();
   else if (state.currentTab === 'accounts') c.innerHTML = renderAccounts();
   if (state.currentTab === 'summary') attachSummaryHandlers();
 }
@@ -909,6 +913,7 @@ function renderDashboard(){
       <button class="btn" onclick="openModal('expenseModal'); prepExpenseModal();">+ Add Expense</button>
     </div>
     <div class="kpi-grid">
+      <div class="kpi positive" style="cursor:pointer;" onclick="switchTab('companyFunds')"><div class="label">Funds In Hand (All Time)</div><div class="value">${formatBDT(companyFundBalance())}</div></div>
       <div class="kpi negative" style="cursor:pointer;" onclick="showKpiHistory('totalExpenses')"><div class="label">Total Expenses</div><div class="value">${formatBDT(k.totalExpenses)}</div></div>
       <div class="kpi" style="cursor:pointer;" onclick="showKpiHistory('companyPaid')"><div class="label">Company Paid</div><div class="value">${formatBDT(k.companyPaid)}</div></div>
       <div class="kpi" style="cursor:pointer;" onclick="showKpiHistory('employeePaid')"><div class="label">Employee Paid</div><div class="value">${formatBDT(k.employeePaid)}</div></div>
@@ -1361,6 +1366,77 @@ function renderAccounts(){
       `).join('')}
     </div>
   `;
+}
+
+function companyFundTotals(){
+  const received = data.companyFunds.filter(t=>t.type==='RECEIVED').reduce((sum,t)=>sum+Number(t.amount),0);
+  const spent = data.companyFunds.filter(t=>t.type==='SPENT').reduce((sum,t)=>sum+Number(t.amount),0);
+  return { received, spent, balance: received-spent };
+}
+function companyFundBalance(){ return companyFundTotals().balance; }
+function escapeHtml(value){
+  return String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+}
+function renderCompanyFunds(){
+  const totals = companyFundTotals();
+  let runningBalance = 0;
+  const transactions = [...data.companyFunds].sort((a,b)=>a.date.localeCompare(b.date) || a.createdAt-b.createdAt).map(t=>{
+    runningBalance += t.type==='RECEIVED' ? Number(t.amount) : -Number(t.amount);
+    return {...t, balanceAfter:runningBalance};
+  }).reverse();
+  return `
+    <h1>Company Funds</h1>
+    <p class="subtitle">Track money received from the company and expenses paid from that fund.</p>
+    <div class="kpi-grid">
+      <div class="kpi positive"><div class="label">Total Received</div><div class="value">${formatBDT(totals.received)}</div></div>
+      <div class="kpi negative"><div class="label">Total Spent</div><div class="value">${formatBDT(totals.spent)}</div></div>
+      <div class="kpi ${totals.balance<0?'warning':'positive'}"><div class="label">Balance In Hand</div><div class="value">${formatBDT(totals.balance)}</div></div>
+    </div>
+    <div class="card">
+      <h3>Record Fund Transaction</h3>
+      <div class="field-row">
+        <div class="field"><label>Transaction</label><select id="fund_type"><option value="RECEIVED">Received from Company</option><option value="SPENT">Spent from Fund</option></select></div>
+        <div class="field"><label>Date</label><input type="date" id="fund_date" value="${todayStr()}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Description</label><input type="text" id="fund_description" placeholder="e.g. Office supplies"></div>
+        <div class="field"><label>Amount (৳)</label><input type="number" id="fund_amount" min="0.01" step="0.01"></div>
+      </div>
+      <button class="btn" onclick="recordCompanyFundTransaction()">Add Transaction</button>
+    </div>
+    <div class="card" style="padding:0;overflow-x:auto;">
+      <table>
+        <thead><tr><th>Date</th><th>Description</th><th>Received</th><th>Spent</th><th>Balance After</th><th></th></tr></thead>
+        <tbody>${transactions.length ? transactions.map(t=>`
+          <tr>
+            <td>${formatDate(t.date)}</td><td>${escapeHtml(t.description)}</td>
+            <td class="green">${t.type==='RECEIVED'?formatBDT(t.amount):'—'}</td>
+            <td class="red">${t.type==='SPENT'?formatBDT(t.amount):'—'}</td>
+            <td class="${t.balanceAfter<0?'red':'amber'}">${formatBDT(t.balanceAfter)}</td>
+            <td><button class="btn sm danger" onclick="deleteCompanyFundTransaction('${t.id}')" title="Delete transaction">Delete</button></td>
+          </tr>`).join('') : '<tr><td colspan="6" class="empty">No fund transactions recorded yet.</td></tr>'}</tbody>
+      </table>
+    </div>
+  `;
+}
+function recordCompanyFundTransaction(){
+  const type = document.getElementById('fund_type').value;
+  const date = document.getElementById('fund_date').value;
+  const description = document.getElementById('fund_description').value.trim();
+  const amount = Number(document.getElementById('fund_amount').value);
+  if (!date || !description || !Number.isFinite(amount) || amount<=0){
+    alert('Please enter a date, description, and amount greater than zero.');
+    return;
+  }
+  data.companyFunds.push({id:uid(),type,date,description,amount,createdAt:Date.now()});
+  saveData();
+  render();
+}
+function deleteCompanyFundTransaction(id){
+  if (!confirm('Delete this fund transaction? This will update the balance.')) return;
+  data.companyFunds = data.companyFunds.filter(t=>t.id!==id);
+  saveData();
+  render();
 }
 
 /* ---------------------------------------------------------

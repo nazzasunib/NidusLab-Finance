@@ -260,12 +260,15 @@ const NAV = [
   {id:'companyFunds', label:'Company Funds', icon:ICONS.funds},
   {id:'reimbursements', label:'Reimbursements', icon:ICONS.reimbursements},
   {id:'summary', label:'Summary', icon:ICONS.summary},
-  {id:'accounts', label:'Chart of Accounts', icon:ICONS.accounts},
+  {id:'requests', label:'Requests', icon:ICONS.reimbursements, writer:true},
   {id:'users', label:'Users & Access', icon:ICONS.users, admin:true},
+  {id:'mine', label:'My Expenses', icon:ICONS.expenses, emp:true},
+  {id:'settings', label:'Settings', icon:ICONS.accounts, any:true},
 ];
 let state = { currentTab: 'dashboard' };
 
 function render(){
+  if (!navVisible(NAV.find(n => n.id === state.currentTab))) state.currentTab = canWrite() ? 'dashboard' : 'mine';
   renderNav();
   document.getElementById('topDate').textContent = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
   const c = document.getElementById('content');
@@ -277,12 +280,15 @@ function render(){
   else if (t === 'companyFunds') c.innerHTML = renderCompanyFunds();
   else if (t === 'accounts') c.innerHTML = renderAccounts();
   else if (t === 'users' && isAdmin()){ c.innerHTML = renderUsersShell(); loadUsersTab(); }
+  else if (t === 'requests') c.innerHTML = renderRequests();
+  else if (t === 'mine') c.innerHTML = renderMine();
+  else if (t === 'settings'){ c.innerHTML = renderSettings(); applyAvatar(); }
   postRender();
 }
 function renderNav(){
-  document.getElementById('navList').innerHTML = NAV.filter(n => !n.admin || isAdmin()).map((n, i) => `
+  document.getElementById('navList').innerHTML = NAV.filter(navVisible).map((n, i) => `
     <div class="nav-item ${state.currentTab===n.id?'active':''}" style="--i:${i}" onclick="switchTab('${n.id}')">
-      <span class="nav-icon">${n.icon}</span><span class="nav-label">${n.label}</span>${n.id==='users' && pendingCount ? `<span class="nav-badge">${pendingCount}</span>` : ''}
+      <span class="nav-icon">${n.icon}</span><span class="nav-label">${n.label}</span>${badgeFor(n)}
     </div>`).join('');
 }
 function switchTab(id){ state.currentTab = id; animNext = true; closeSidebar(); render(); window.scrollTo(0,0); }
@@ -433,7 +439,7 @@ function expenseRowHtml(e){
   return `<tr>
     <td class="click" ${click} style="white-space:nowrap;">${formatDate(e.date)}</td>
     <td class="click" ${click}>${esc(e.category)}</td>
-    <td class="click" ${click} style="max-width:220px;overflow:hidden;text-overflow:ellipsis;">${esc(e.description||'—')}${e.photo?' 📎':''}</td>
+    <td class="click" ${click} style="max-width:220px;overflow:hidden;text-overflow:ellipsis;">${e.costFund?`<span class="tag">${esc(e.costFund)}</span> `:''}${esc(e.description||'—')}${e.photo?' 📎':''}</td>
     <td class="click" ${click}>${who}</td>
     <td class="click num" ${click}><b>${formatBDT(e.amount)}</b></td>
     <td class="click" ${click}><span class="badge-status ${st.cls}">${st.label}</span>${due>0?`<div class="amber" style="font-size:11.5px;margin-top:3px;">Due ${formatBDT(due)}</div>`:''}</td>
@@ -468,6 +474,7 @@ function renderExpenses(){
       ${kpiCard({ label:'Company Paid', value:r.companyPaid, sub:'From company fund' })}
       ${kpiCard({ label:'Employee Paid', value:r.employeePaid, sub:'From own pocket' })}
     </div>
+    ${fundSummaryHtml(r.expenses)}
     <div class="card" style="padding:0;overflow-x:auto;">
       <table>
         <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Paid By</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead>
@@ -626,12 +633,14 @@ function prepExpenseModal(){
   document.getElementById('exp_category').innerHTML = EXPENSE_CATEGORIES.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('') + `<option value="OTHERS">Others</option>`;
   document.getElementById('exp_method').innerHTML = methodOptions('CASH');
   refreshEmployeeDropdown();
+  setCostFundFor(null);
   ['exp_description','exp_amount','exp_notes','exp_category_other','exp_photo'].forEach(id => document.getElementById(id).value = '');
   ['exp_photo_preview','exp_photo_filename','exp_photo_remove','exp_employee_field','exp_category_other_field'].forEach(id => document.getElementById(id).classList.add('hidden'));
   document.querySelector('input[name="exp_paidby"][value="COMPANY"]').checked = true;
   window._expPhotoFile = null; window._expPhotoKeep = null;
   onCategoryChange();
   togglePaidBy();
+  applyRoleToExpenseModal();
 }
 function openEditExpense(id){
   const e = data.expenses.find(x => x.id === id);
@@ -658,6 +667,7 @@ function openEditExpense(id){
     window._expPhotoKeep = { path:e.photoPath, name:e.photoName, mime:e.photoMime, url:e.photo };
     showPhotoPreview(e.photo, e.photoName, isImageFile(e));
   }
+  setCostFundFor(e);
   togglePaidBy();
   openModal('expenseModal');
 }
@@ -669,24 +679,6 @@ function togglePaidBy(){
   const p = getPaidBy();
   document.getElementById('exp_employee_field').classList.toggle('hidden', p !== 'EMPLOYEE');
   updateExpensePreview();
-}
-function refreshEmployeeDropdown(selectValue){
-  const emp = document.getElementById('exp_employee');
-  emp.innerHTML = data.employees.map(e => `<option value="${esc(e)}">${esc(e)}</option>`).join('');
-  if (selectValue) emp.value = selectValue;
-}
-function addEmployeePrompt(){
-  const name = prompt('Enter new employee name:');
-  if (!name || !name.trim()) return;
-  const trimmed = name.trim();
-  if (data.employees.includes(trimmed)){ alert('That employee already exists.'); return; }
-  data.employees.push(trimmed); saveData(); refreshEmployeeDropdown(trimmed); updateExpensePreview();
-}
-function removeEmployeePrompt(){
-  const selected = document.getElementById('exp_employee').value;
-  if (!selected) return;
-  if (!confirm(`Remove "${selected}" from the employee list? (Past expenses under this name are kept.)`)) return;
-  data.employees = data.employees.filter(e => e !== selected); saveData(); refreshEmployeeDropdown(); updateExpensePreview();
 }
 function showPhotoPreview(src, name, isImage){
   const img = document.getElementById('exp_photo_preview');
@@ -720,7 +712,9 @@ function updateExpensePreview(){
     const adj = old && old.paidBy === 'COMPANY' ? num(old.amount) : 0;
     const after = round2(cashNow + adj - amount);
     html += `<div>Company Paid: <b>+${formatBDT(amount)}</b></div><div>Cash in Hand: ${formatBDT(cashNow)} → <b class="${after<0?'red':''}">${formatBDT(after)}</b></div>`;
-    if (after < 0) html += `<div class="warn-box">Not enough cash in hand. Add money first, or choose "Employee" if someone paid from their own pocket.</div>`;
+    if (after < 0) html += `<div class="warn-box">Cash in Hand ${formatBDT(cashNow + adj)}. Short by <b>${formatBDT(-after)}</b> — cannot save. Add the ${formatBDT(-after)} as a separate "Employee (Own Pocket)" expense, or add money first.</div>`;
+  } else if (!canWrite()){
+    html = `<div><b>Request to admin:</b> ${formatBDT(amount)}</div><div class="muted">After approval you get ${formatBDT(amount)} back as reimbursement.</div>`;
   } else {
     const emp = document.getElementById('exp_employee').value || 'employee';
     html += `<div>Employee Paid: <b>+${formatBDT(amount)}</b> (${esc(emp)})</div><div>Employee Payable: <b>+${formatBDT(amount)}</b> — ${esc(emp)} will get this back when reimbursed.</div><div class="muted">Cash in Hand does not change now (${formatBDT(cashNow)}).</div>`;
@@ -736,6 +730,7 @@ function saveExpense(){
   const paymentMethod = document.getElementById('exp_method').value;
   const employee = document.getElementById('exp_employee').value;
   const notes = document.getElementById('exp_notes').value.trim();
+  const costFund = getCostFund();
 
   if (category === 'OTHERS'){
     const custom = document.getElementById('exp_category_other').value.trim();
@@ -744,13 +739,19 @@ function saveExpense(){
   }
   if (!date || amount <= 0){ alert('Please enter a date and an amount greater than zero.'); return; }
   if (date < DATA_START){ alert(`Books start on ${formatDate(DATA_START)}. Please choose a date on or after that.`); return; }
+  if (!costFund){ alert('Please choose a Cost Fund (NidusTime / NidusJob / NidusLab / Others).'); return; }
   if (paidBy === 'EMPLOYEE' && !employee){ alert('Please select which employee paid.'); return; }
 
   const editingId = document.getElementById('exp_editing_id').value;
   const accountCode = CATEGORY_ACCOUNT[category] || '5150'; // ledger account is picked automatically from the category
   const fields = { date, category, accountCode, accountLabel:null, description, amount, paidBy, paymentMethod,
-    employee: paidBy === 'EMPLOYEE' ? employee : null, notes, ...photoFields() };
+    employee: paidBy === 'EMPLOYEE' ? employee : null, notes, costFund, ...photoFields() };
 
+  if (!canWrite()){
+    if (editingId) return;
+    data.mine.push({ id:uid(), createdAt:Date.now(), payments:[], status:'PENDING', ...fields, paidBy:'EMPLOYEE', employee:me.name });
+    saveData(); closeModal('expenseModal'); toast('Request sent to admin.'); render(); return;
+  }
   if (editingId){
     const e = data.expenses.find(x => x.id === editingId);
     if (!e) return;
@@ -767,11 +768,11 @@ function saveExpense(){
     // Cash needed by this edit = new company-paid amount − old company-paid amount − payments being undone
     const freed = (e.paidBy === 'COMPANY' ? num(e.amount) : 0) + (payments.length ? 0 : paidSum(e));
     const extra = round2((paidBy === 'COMPANY' ? amount : 0) - freed);
-    if (extra > 0 && !confirmCash(extra, date)) return;
+    if (extra > 0 && !checkCashOrBlock(extra)) return;
     Object.assign(e, fields, { payments });
   } else {
-    if (paidBy === 'COMPANY' && !confirmCash(amount, date)) return;
-    data.expenses.push({ id:uid(), createdAt:Date.now(), payments:[], ...fields });
+    if (paidBy === 'COMPANY' && !checkCashOrBlock(amount)) return;
+    data.expenses.push({ id:uid(), createdAt:Date.now(), payments:[], status:'APPROVED', ...fields });
   }
   saveData();
   closeModal('expenseModal');
@@ -1252,7 +1253,7 @@ let animNext = true;    // play entrance animation on next render
 
 const canWrite = () => !!me && (me.role === 'ADMIN' || me.role === 'FINANCE');
 const isAdmin = () => !!me && me.role === 'ADMIN';
-const ROLE_LABEL = { ADMIN:'Admin', FINANCE:'Finance', EMPLOYEE:'Employee (view only)', PENDING:'Pending approval' };
+const ROLE_LABEL = { ADMIN:'Admin', FINANCE:'Finance', EMPLOYEE:'Employee', PENDING:'Pending approval' };
 function usernameToEmail(u){ u = String(u || '').trim().toLowerCase(); return u.includes('@') ? u : `${u}@${EMAIL_DOMAIN}`; }
 const $ = id => document.getElementById(id);
 
@@ -1369,7 +1370,7 @@ async function afterLogin(){
       $('login_error').textContent = 'This account is not registered for NidusLab Finance. Please sign up.';
       return;
     }
-    me = { id: prof.id, username: prof.username, name: prof.full_name || prof.username, role: prof.role, email: user.email };
+    me = { id: prof.id, username: prof.username, name: prof.full_name || prof.username, role: prof.role, email: user.email, avatarPath: prof.avatar_path || null, avatarUrl: null };
     if (prof.role === 'PENDING'){ $('pending_name').textContent = me.name; showScreen('pending'); return; }
     await enterApp();
   } catch (e){
@@ -1396,6 +1397,8 @@ async function enterApp(){
   $('topbar_role').textContent = ROLE_LABEL[me.role] || me.role;
   $('topbar_avatar').textContent = (me.name || '?').trim().slice(0, 1).toUpperCase();
   $('mobile_avatar').textContent = $('topbar_avatar').textContent;
+  await loadAvatar();
+  if (!canWrite()) state.currentTab = 'mine';
   setLoader(true, 'Syncing your books…');
   await reloadData(true);
   if (isAdmin()) await refreshPendingBadge();
@@ -1416,18 +1419,22 @@ async function fetchRows(table){
   }
   return out;
 }
-function buildData(emp, exp, pay, fund){
-  const d = { version:3, employees: emp.map(x => x.name).sort((a, b) => a.localeCompare(b)), expenses:[], funds:[] };
+function buildData(emp, exp, pay, fund, cf){
+  const d = { version:3, employees: emp.map(x => x.name).sort((a, b) => a.localeCompare(b)), costFunds:(cf || []).map(x => x.name), expenses:[], requests:[], mine:[], funds:[] };
   const byId = {};
   exp.forEach(r => {
     const e = {
       id:r.id, date:r.date, category:r.category, accountCode: CATEGORY_ACCOUNT[r.category] || r.account_code || '5150', accountLabel:null,
       description:r.description || '', amount:num(r.amount), paidBy:r.paid_by, paymentMethod:r.payment_method || 'CASH',
       employee:r.paid_by === 'EMPLOYEE' ? (r.employee || '') : null, notes:r.notes || '',
+      costFund:r.cost_fund || '', status:r.status || 'APPROVED',
       photoPath:r.photo_path || null, photoName:r.photo_name || null, photoMime:r.photo_mime || null, photo:null,
       createdAt:Date.parse(r.created_at) || 0, payments:[],
     };
-    byId[e.id] = e; d.expenses.push(e);
+    byId[e.id] = e;
+    if (!canWrite()) d.mine.push(e);
+    else if (e.status === 'PENDING') d.requests.push(e);
+    else d.expenses.push(e);
   });
   pay.forEach(p => {
     const e = byId[p.expense_id];
@@ -1436,6 +1443,8 @@ function buildData(emp, exp, pay, fund){
   fund.forEach(f => d.funds.push({ id:f.id, date:f.date, type:f.type, description:f.description || '', amount:num(f.amount), method:f.method || 'CASH', createdAt:Date.parse(f.created_at) || 0 }));
   return d;
 }
+const allExp = d => d.expenses.concat(d.requests || [], d.mine || []);
+let members = [];
 async function attachSignedUrls(list){
   const paths = list.filter(e => e.photoPath).map(e => e.photoPath);
   if (!paths.length) return;
@@ -1448,28 +1457,29 @@ function isImageFile(e){
   return !!e.photo && (String(e.photoMime || '').startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg|avif)$/i.test(e.photoName || e.photoPath || ''));
 }
 async function reloadData(force){
-  const [emp, exp, pay, fund] = await Promise.all([fetchRows('fin_employees'), fetchRows('fin_expenses'), fetchRows('fin_expense_payments'), fetchRows('fin_funds')]);
-  const nd = buildData(emp, exp, pay, fund);
+  const [emp, exp, pay, fund, cf, mem] = await Promise.all([fetchRows('fin_employees'), fetchRows('fin_expenses'), fetchRows('fin_expense_payments'), canWrite() ? fetchRows('fin_funds') : Promise.resolve([]), fetchRows('fin_cost_funds'), sb.from('fin_profiles').select('id,username,full_name,role').neq('role', 'PENDING')]);
+  members = (mem.data || []).map(m => ({ id:m.id, name:m.full_name || m.username, role:m.role })).sort((a, b) => a.name.localeCompare(b.name));
+  const nd = buildData(emp, exp, pay, fund, cf);
   const s = snapshotOf(nd);
   if (!force && data && s.sig === snap.sig) return false;
   if (data && !force){ // keep already-resolved signed URLs / local previews for unchanged photos
-    const old = new Map(data.expenses.map(e => [e.id, e]));
-    nd.expenses.forEach(e => { const o = old.get(e.id); if (o && o.photoPath === e.photoPath && o.photo) e.photo = o.photo; });
+    const old = new Map(allExp(data).map(e => [e.id, e]));
+    allExp(nd).forEach(e => { const o = old.get(e.id); if (o && o.photoPath === e.photoPath && o.photo) e.photo = o.photo; });
   }
-  await attachSignedUrls(nd.expenses.filter(e => !e.photo));
+  await attachSignedUrls(allExp(nd).filter(e => !e.photo));
   data = nd; snap = s;
   return true;
 }
 
 /* ---------- Data: snapshot + diff push ---------- */
-let snap = { exp:new Map(), pay:new Map(), fund:new Map(), emp:new Set(), sig:'' };
+let snap = { exp:new Map(), pay:new Map(), fund:new Map(), emp:new Set(), cf:new Set(), sig:'' };
 const iso = ms => new Date(ms || Date.now()).toISOString();
-function expRow(e){ return { id:e.id, date:e.date, category:e.category, account_code:e.accountCode || '5150', description:e.description || '', amount:round2(num(e.amount)), paid_by:e.paidBy, payment_method:e.paymentMethod || 'CASH', employee:e.paidBy === 'EMPLOYEE' ? (e.employee || null) : null, notes:e.notes || '', photo_path:e.photoPath || null, photo_name:e.photoName || null, photo_mime:e.photoMime || null, created_at:iso(e.createdAt) }; }
+function expRow(e){ return { id:e.id, date:e.date, category:e.category, account_code:e.accountCode || '5150', description:e.description || '', amount:round2(num(e.amount)), paid_by:e.paidBy, payment_method:e.paymentMethod || 'CASH', employee:e.paidBy === 'EMPLOYEE' ? (e.employee || null) : null, notes:e.notes || '', cost_fund:e.costFund || '', status:e.status || 'APPROVED', photo_path:e.photoPath || null, photo_name:e.photoName || null, photo_mime:e.photoMime || null, created_at:iso(e.createdAt) }; }
 function payRow(p, eid){ return { id:p.id, expense_id:eid, kind:p.kind || 'REIMBURSE', date:p.date, amount:round2(num(p.amount)), method:p.method || 'CASH', note:p.note || '', created_at:iso(p.createdAt) }; }
 function fundRow(f){ return { id:f.id, date:f.date, type:f.type, description:f.description || '', amount:round2(num(f.amount)), method:f.method || 'CASH', created_at:iso(f.createdAt) }; }
 function snapshotOf(d){
-  const s = { exp:new Map(), pay:new Map(), fund:new Map(), emp:new Set(d.employees), sig:'' };
-  d.expenses.forEach(e => {
+  const s = { exp:new Map(), pay:new Map(), fund:new Map(), emp:new Set(d.employees), cf:new Set(d.costFunds || []), sig:'' };
+  allExp(d).forEach(e => {
     const r = expRow(e); s.exp.set(e.id, { json:JSON.stringify(r), row:r });
     (e.payments || []).forEach(p => { const pr = payRow(p, e.id); s.pay.set(p.id, { json:JSON.stringify(pr), row:pr }); });
   });
@@ -1477,6 +1487,7 @@ function snapshotOf(d){
   const parts = [];
   ['exp','pay','fund'].forEach(k => { [...s[k].entries()].sort((a, b) => a[0] < b[0] ? -1 : 1).forEach(([id, v]) => parts.push(k + id + v.json)); });
   parts.push('emp' + [...s.emp].sort().join('|'));
+  parts.push('cf' + [...s.cf].sort().join('|'));
   s.sig = parts.join('\n');
   return s;
 }
@@ -1493,7 +1504,7 @@ function chk(res){ if (res && res.error) throw res.error; return res; }
 function safeName(n){ return String(n || 'file').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(-80); }
 async function pushChanges(){
   // 1) upload new attachments
-  for (const e of data.expenses){
+  for (const e of allExp(data)){
     if (e.photoFile){
       const f = e.photoFile;
       const path = `${e.id}/${Date.now()}-${safeName(f.name)}`;
@@ -1507,14 +1518,17 @@ async function pushChanges(){
   const upE = changed('exp'), upF = changed('fund'), upP = changed('pay');
   const newEmp = [...cur.emp].filter(n => !snap.emp.has(n)), delEmp = [...snap.emp].filter(n => !cur.emp.has(n));
   const delP = removed('pay'), delE = removed('exp'), delF = removed('fund');
+  const newCf = [...cur.cf].filter(n => !snap.cf.has(n)), delCf = [...snap.cf].filter(n => !cur.cf.has(n));
 
   if (upE.length) chk(await sb.from('fin_expenses').upsert(upE, { onConflict:'id' }));
   if (upF.length) chk(await sb.from('fin_funds').upsert(upF, { onConflict:'id' }));
   if (newEmp.length) chk(await sb.from('fin_employees').upsert(newEmp.map(name => ({ name })), { onConflict:'name', ignoreDuplicates:true }));
+  if (newCf.length) chk(await sb.from('fin_cost_funds').upsert(newCf.map(name => ({ name })), { onConflict:'name', ignoreDuplicates:true }));
   if (upP.length) chk(await sb.from('fin_expense_payments').upsert(upP, { onConflict:'id' }));
   if (delP.length) chk(await sb.from('fin_expense_payments').delete().in('id', delP));
   if (delE.length) chk(await sb.from('fin_expenses').delete().in('id', delE));
   if (delF.length) chk(await sb.from('fin_funds').delete().in('id', delF));
+  if (delCf.length) chk(await sb.from('fin_cost_funds').delete().in('name', delCf));
   if (delEmp.length) chk(await sb.from('fin_employees').delete().in('name', delEmp));
 
   // 2) clean up replaced / orphaned attachments (best effort)
@@ -1533,9 +1547,9 @@ let rtChannel = null, rtTimer = null;
 function startRealtime(){
   if (rtChannel) return;
   rtChannel = sb.channel('fin-live');
-  ['fin_expenses','fin_expense_payments','fin_funds','fin_employees','fin_profiles'].forEach(t => rtChannel.on('postgres_changes', { event:'*', schema:'public', table:t }, () => scheduleRefresh()));
+  ['fin_expenses','fin_expense_payments','fin_funds','fin_employees','fin_profiles','fin_cost_funds'].forEach(t => rtChannel.on('postgres_changes', { event:'*', schema:'public', table:t }, () => scheduleRefresh()));
   rtChannel.subscribe(st => { if (!pushing) setSync(st === 'SUBSCRIBED' ? 'live' : (st === 'CLOSED' || st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') ? 'offline' : 'live'); });
-  setInterval(() => { if (data) attachSignedUrls(data.expenses); }, 45 * 60 * 1000);
+  setInterval(() => { if (data) attachSignedUrls(allExp(data)); }, 45 * 60 * 1000);
 }
 function stopRealtime(){ if (rtChannel){ sb.removeChannel(rtChannel); rtChannel = null; } }
 function scheduleRefresh(){
@@ -1560,9 +1574,9 @@ async function refreshPendingBadge(skipRender){
 function renderUsersShell(){
   return `
     <div class="page-head">
-      <div><h1>Users &amp; Access</h1><p class="subtitle" style="margin-bottom:0;">Approve new sign-ups and set roles. <b>Admin</b> &amp; <b>Finance</b> can add / edit / delete. <b>Employee</b> is view-only. <b>Pending</b> has no access.</p></div>
+      <div><h1>Users &amp; Access</h1><p class="subtitle" style="margin-bottom:0;">Approve new sign-ups and set roles. <b>Admin</b> &amp; <b>Finance</b> can add / edit / delete. <b>Employee</b> sees only own expenses and sends requests for approval. <b>Pending</b> has no access.</p></div>
     </div>
-    <div class="card" id="inviteCard" style="margin-top:18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;"><div style="flex:1;min-width:220px;"><div style="font-weight:700;">Team invite code</div><div class="muted" style="font-size:13px;">Share with your team. Anyone who signs up with it joins instantly as <b>Employee</b> (view-only). Change role below if needed.</div></div><code id="inviteCode" style="font-size:18px;font-weight:800;letter-spacing:1px;padding:8px 14px;border-radius:10px;background:#eef2fb;">…</code><button class="btn secondary" onclick="copyInvite()">Copy</button><button class="btn secondary" onclick="newInvite()">New code</button></div>
+    <div class="card" id="inviteCard" style="margin-top:18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;"><div style="flex:1;min-width:220px;"><div style="font-weight:700;">Team invite code</div><div class="muted" style="font-size:13px;">Share with your team. Anyone who signs up with it joins instantly as <b>Employee</b> (own expenses + requests). Change role below if needed.</div></div><code id="inviteCode" style="font-size:18px;font-weight:800;letter-spacing:1px;padding:8px 14px;border-radius:10px;background:#eef2fb;">…</code><button class="btn secondary" onclick="copyInvite()">Copy</button><button class="btn secondary" onclick="newInvite()">New code</button></div>
     <div class="card" style="padding:0;overflow-x:auto;margin-top:18px;" id="usersCard"><div class="empty">Loading users…</div></div>`;
 }
 async function loadInvite(){
@@ -1688,4 +1702,188 @@ function postRender(){
     c.classList.remove('enter'); void c.offsetWidth; c.classList.add('enter');
     animateNumbers(c); animNext = false;
   } else c.classList.remove('enter');
+}
+
+/* =========================================================
+   Features: cost funds, employee picker, requests, settings, avatar
+   ========================================================= */
+function navVisible(n){ if (!n) return false; if (n.any) return true; if (n.emp) return !canWrite(); if (n.admin) return isAdmin(); return canWrite(); }
+function badgeFor(n){
+  const c = n.id === 'users' ? pendingCount : n.id === 'requests' ? ((data && data.requests) || []).length : 0;
+  return c ? `<span class="nav-badge">${c}</span>` : '';
+}
+
+/* ----- Cost fund chips ----- */
+let costFundSel = '';
+function renderFundChips(){
+  const box = $('exp_fund_chips'); if (!box) return;
+  const list = (data.costFunds || []);
+  box.innerHTML = list.map(n => `<button type="button" class="chip-btn ${costFundSel === n ? 'on' : ''}" onclick="pickCostFund(${jsArg(n)})">${esc(n)}</button>`).join('')
+    + `<button type="button" class="chip-btn ${costFundSel === '__OTHERS__' ? 'on' : ''}" onclick="pickCostFund('__OTHERS__')">Others</button>`
+    + (canWrite() ? `<button type="button" class="chip-btn add" onclick="addCostFundPrompt()">+ Add</button>` : '');
+  $('exp_fund_other_field').classList.toggle('hidden', costFundSel !== '__OTHERS__');
+}
+function pickCostFund(n){ costFundSel = n; renderFundChips(); if (n === '__OTHERS__') setTimeout(() => $('exp_fund_other').focus(), 30); }
+function addCostFundPrompt(){
+  const name = (prompt('New cost fund name (e.g. product / project):') || '').trim();
+  if (!name) return;
+  if ((data.costFunds || []).some(x => x.toLowerCase() === name.toLowerCase())){ alert('That cost fund already exists.'); return; }
+  data.costFunds.push(name); saveData(); pickCostFund(name);
+}
+function getCostFund(){ return costFundSel === '__OTHERS__' ? $('exp_fund_other').value.trim() : costFundSel; }
+function setCostFundFor(e){
+  const v = e ? e.costFund : '';
+  $('exp_fund_other').value = '';
+  if (v && !(data.costFunds || []).includes(v)){ costFundSel = '__OTHERS__'; $('exp_fund_other').value = v; }
+  else costFundSel = v || '';
+  renderFundChips();
+}
+
+/* ----- Employee picker (group members as clickable chips) ----- */
+function pickEmployee(n){ $('exp_employee').value = n; renderEmployeeChips(); updateExpensePreview(); }
+function renderEmployeeChips(){
+  const box = $('exp_employee_chips'); if (!box) return;
+  const cur = $('exp_employee').value;
+  box.innerHTML = [...$('exp_employee').options].map(o => `<button type="button" class="chip-btn ${o.value === cur ? 'on' : ''}" onclick="pickEmployee(${jsArg(o.value)})">${esc(o.value)}</button>`).join('') || '<span class="muted">No team members yet.</span>';
+}
+function refreshEmployeeDropdown(selectValue){
+  const names = members.map(m => m.name);
+  if (selectValue && !names.includes(selectValue)) names.push(selectValue);
+  const sel = $('exp_employee');
+  sel.innerHTML = names.map(e => `<option value="${esc(e)}">${esc(e)}</option>`).join('');
+  sel.value = selectValue && names.includes(selectValue) ? selectValue : (names[0] || '');
+  renderEmployeeChips();
+}
+function applyRoleToExpenseModal(){
+  const w = canWrite();
+  $('exp_paidby_field').classList.toggle('hidden', !w);
+  if (!w){
+    document.querySelector('input[name="exp_paidby"][value="EMPLOYEE"]').checked = true;
+    refreshEmployeeDropdown(me.name);
+    $('exp_employee_field').classList.add('hidden');
+    $('expenseModalTitle').textContent = 'Request Expense';
+    $('expenseSaveBtn').textContent = 'Send Request';
+    updateExpensePreview();
+  }
+}
+
+/* ----- Cash check: block when company cash is short ----- */
+function checkCashOrBlock(need){
+  const cash = cashBalance();
+  if (round2(cash - need) >= 0) return true;
+  const short = round2(need - Math.max(0, cash));
+  alert(`Cash in Hand is only ${formatBDT(cash)}. Short by ${formatBDT(short)}. Not saved.\n\nSave the ${formatBDT(Math.max(0, cash))} here as Company Fund, then add the ${formatBDT(short)} as a separate expense with "Employee (Own Pocket)". Or add money to Company Funds first.`);
+  return false;
+}
+function fundSummaryHtml(list){
+  const t = {}; list.forEach(e => { const k = e.costFund || 'Unassigned'; t[k] = (t[k] || 0) + num(e.amount); });
+  const keys = Object.keys(t).sort((a, b) => t[b] - t[a]);
+  if (!keys.length) return '';
+  return `<div class="card fund-sum"><div style="font-weight:700;margin-bottom:8px;">Spending by Cost Fund</div><div class="chips">${keys.map(k => `<span class="fund-pill"><b>${esc(k)}</b> ${formatBDT(t[k])}</span>`).join('')}</div></div>`;
+}
+
+/* ----- Requests (admin/finance) ----- */
+function approveRequest(id){
+  const i = data.requests.findIndex(x => x.id === id); if (i < 0) return;
+  const e = data.requests.splice(i, 1)[0]; e.status = 'APPROVED'; data.expenses.push(e);
+  saveData(); toast('Approved. Added to books.'); render();
+}
+function rejectRequest(id){
+  const e = data.requests.find(x => x.id === id); if (!e) return;
+  if (!confirm(`Reject request "${e.description || e.category}" (${formatBDT(e.amount)}) from ${e.employee}? It will be deleted.`)) return;
+  data.requests = data.requests.filter(x => x.id !== id); saveData(); toast('Request rejected.'); render();
+}
+function photoLink(e){ return e.photo ? `<a href="${e.photo}" target="_blank" rel="noopener">📎 View</a>` : '<span class="muted">—</span>'; }
+function renderRequests(){
+  const list = [...data.requests].sort(byDateDesc);
+  const total = sumBy(list, e => e.amount);
+  const rows = list.length ? list.map(e => `<tr>
+    <td style="white-space:nowrap;">${formatDate(e.date)}</td><td><b>${esc(e.employee || '—')}</b></td>
+    <td>${e.costFund ? `<span class="tag">${esc(e.costFund)}</span>` : '—'}</td><td>${esc(e.category)}</td>
+    <td style="max-width:220px;">${esc(e.description || '—')}${e.notes ? `<div class="muted" style="font-size:11.5px;">${esc(e.notes)}</div>` : ''}</td>
+    <td>${photoLink(e)}</td><td class="num"><b>${formatBDT(e.amount)}</b></td>
+    <td><div class="row" style="gap:6px;flex-wrap:nowrap;"><button class="btn sm success" onclick="approveRequest('${e.id}')">Approve</button><button class="btn sm danger" onclick="rejectRequest('${e.id}')">Reject</button></div></td></tr>`).join('')
+    : `<tr><td colspan="8" class="empty">No pending requests.</td></tr>`;
+  return `<div class="page-head"><div><h1>Expense Requests</h1><p class="subtitle" style="margin-bottom:0;">Team members send expenses here. Approve to add them to the books (employee-paid, reimbursable).</p></div></div>
+    <div class="kpi-grid">${kpiCard({ label:'Requested Amount', value:total, cls:'warning', icon:KPI_SVG.clock, sub:`${list.length} waiting for approval` })}</div>
+    <div class="card" style="padding:0;overflow-x:auto;"><table><thead><tr><th>Date</th><th>By</th><th>Cost Fund</th><th>Category</th><th>Description</th><th>Receipt</th><th class="num">Amount</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+/* ----- Employee view ----- */
+function renderMine(){
+  const rows = [...data.mine].sort(byDateDesc);
+  const appr = rows.filter(e => e.status === 'APPROVED'), pend = rows.filter(e => e.status === 'PENDING');
+  const total = sumBy(appr, e => e.amount), got = sumBy(appr, e => sumBy(e.payments || [], p => p.amount));
+  const due = Math.max(0, round2(total - got)), pendAmt = sumBy(pend, e => e.amount);
+  const body = rows.length ? rows.map(e => {
+    const paid = sumBy(e.payments || [], p => p.amount), left = round2(e.amount - paid);
+    const st = e.status === 'PENDING' ? '<span class="badge-status badge-pending">Pending approval</span>'
+      : left <= 0 ? '<span class="badge-status badge-reimbursed">Received</span>'
+      : paid > 0 ? `<span class="badge-status badge-partial">Partly received</span><div class="amber" style="font-size:11.5px;margin-top:3px;">Due ${formatBDT(left)}</div>`
+      : `<span class="badge-status badge-partial">Approved</span><div class="amber" style="font-size:11.5px;margin-top:3px;">You get ${formatBDT(left)}</div>`;
+    return `<tr><td style="white-space:nowrap;">${formatDate(e.date)}</td><td>${e.costFund ? `<span class="tag">${esc(e.costFund)}</span>` : '—'}</td><td>${esc(e.category)}</td>
+      <td style="max-width:220px;">${esc(e.description || '—')}${e.photo ? ' 📎' : ''}</td><td class="num"><b>${formatBDT(e.amount)}</b></td><td>${st}</td></tr>`;
+  }).join('') : `<tr><td colspan="6" class="empty">No expenses yet. Tap "+ Request Expense".</td></tr>`;
+  return `<div class="page-head"><div><h1>My Expenses</h1><p class="subtitle" style="margin-bottom:0;">Your own costs and how much you will get back. New expenses go to admin for approval.</p></div>
+    <div class="actions"><button class="btn" onclick="openExpenseModal()">+ Request Expense</button></div></div>
+    <div class="kpi-grid">
+      ${kpiCard({ label:'Approved Cost', value:total, cls:'negative', sub:`${appr.length} approved` })}
+      ${kpiCard({ label:'Received', value:got, cls:'positive', icon:KPI_SVG.check, sub:'Already reimbursed' })}
+      ${kpiCard({ label:'You Will Get', value:due, cls:'warning', icon:KPI_SVG.clock, sub:'Still to receive' })}
+      ${kpiCard({ label:'Pending Requests', value:pendAmt, cls:'info', icon:KPI_SVG.layers, sub:`${pend.length} waiting` })}
+    </div>
+    <div class="card" style="padding:0;overflow-x:auto;"><table><thead><tr><th>Date</th><th>Cost Fund</th><th>Category</th><th>Description</th><th class="num">Amount</th><th>Status</th></tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+/* ----- Settings + avatar ----- */
+function applyAvatar(){
+  ['topbar_avatar', 'mobile_avatar', 'set_avatar'].forEach(id => {
+    const el = $(id); if (!el) return;
+    if (me.avatarUrl){ el.style.backgroundImage = `url("${me.avatarUrl}")`; el.style.backgroundSize = 'cover'; el.style.backgroundPosition = 'center'; el.textContent = ''; }
+    else { el.style.backgroundImage = ''; el.textContent = (me.name || '?').trim().slice(0, 1).toUpperCase(); }
+  });
+}
+async function loadAvatar(){
+  me.avatarUrl = null;
+  if (me.avatarPath){ const { data: s } = await sb.storage.from(BUCKET).createSignedUrl(me.avatarPath, 3600); if (s) me.avatarUrl = s.signedUrl; }
+  applyAvatar();
+}
+async function uploadAvatar(ev){
+  const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
+  if (!String(f.type).startsWith('image/')){ toast('Choose an image file.', 'err'); return; }
+  if (f.size > 3 * 1024 * 1024){ toast('Image must be under 3 MB.', 'err'); return; }
+  const path = `avatars/${me.id}/${Date.now()}-${safeName(f.name)}`;
+  const up = await sb.storage.from(BUCKET).upload(path, f, { contentType: f.type, upsert: false });
+  if (up.error){ toast('Upload failed: ' + up.error.message, 'err'); return; }
+  const r = await sb.rpc('fin_set_avatar', { p_path: path });
+  if (r.error){ toast('Could not save: ' + r.error.message, 'err'); return; }
+  const old = me.avatarPath; me.avatarPath = path; await loadAvatar();
+  if (old) sb.storage.from(BUCKET).remove([old]).catch(() => {});
+  toast('Photo updated.');
+}
+async function removeAvatar(){
+  const old = me.avatarPath; if (!old) return;
+  const r = await sb.rpc('fin_set_avatar', { p_path: null });
+  if (r.error){ toast(r.error.message, 'err'); return; }
+  me.avatarPath = null; me.avatarUrl = null; applyAvatar();
+  sb.storage.from(BUCKET).remove([old]).catch(() => {});
+  toast('Photo removed.');
+}
+function renderSettings(){
+  return `<div class="page-head"><div><h1>Settings</h1><p class="subtitle" style="margin-bottom:0;">Your profile and security.</p></div></div>
+    <div class="card" style="display:flex;gap:22px;align-items:center;flex-wrap:wrap;">
+      <div class="avatar" id="set_avatar" style="width:92px;height:92px;font-size:36px;border-radius:26px;">${esc((me.name || '?').slice(0, 1).toUpperCase())}</div>
+      <div style="flex:1;min-width:220px;"><div style="font-size:20px;font-weight:800;">${esc(me.name)}</div>
+        <div class="muted">${esc(me.email || '')}</div><div class="muted">${esc(ROLE_LABEL[me.role] || me.role)} · @${esc(me.username)}</div>
+        <div class="row" style="gap:8px;margin-top:12px;"><button class="btn sm" onclick="$('avatar_file').click()">Upload photo</button>${me.avatarPath ? '<button class="btn sm secondary" onclick="removeAvatar()">Remove</button>' : ''}</div>
+        <input type="file" id="avatar_file" accept="image/*" class="hidden" onchange="uploadAvatar(event)"></div>
+    </div>
+    <div class="card" style="margin-top:18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:space-between;">
+      <div><div style="font-weight:700;">Password</div><div class="muted" style="font-size:13px;">Change the password you use to sign in.</div></div>
+      <button class="btn secondary" onclick="openModal('changePasswordModal')">Change Password</button>
+    </div>
+    <div class="card" style="margin-top:18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:space-between;">
+      <div><div style="font-weight:700;">Sign out</div><div class="muted" style="font-size:13px;">Log out of this device.</div></div>
+      <button class="btn outline" onclick="handleLogout()">Logout</button>
+    </div>`;
 }

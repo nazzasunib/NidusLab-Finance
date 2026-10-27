@@ -88,7 +88,9 @@ language plpgsql security definer set search_path = '' as $$
 begin
   if new.raw_user_meta_data ->> 'app' = 'niduslab_finance' then
     insert into public.fin_profiles (id, username, full_name, role)
-    values (new.id, lower(new.raw_user_meta_data ->> 'username'), coalesce(new.raw_user_meta_data ->> 'name', ''), 'PENDING')
+    values (new.id, lower(new.raw_user_meta_data ->> 'username'), coalesce(new.raw_user_meta_data ->> 'name', ''),
+      -- first person to join becomes ADMIN; everyone after waits for approval
+      case when not exists (select 1 from public.fin_profiles) then 'ADMIN' else 'PENDING' end)
     on conflict (id) do nothing;
   end if;
   return new;

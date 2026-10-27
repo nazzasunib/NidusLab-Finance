@@ -173,3 +173,16 @@ insert into public.fin_employees (name) values ('Prima Islam'), ('Rahim Uddin'),
 on conflict (name) do nothing;
 
 notify pgrst, 'reload schema';
+-- Lets an existing NidusLab login (e.g. from another app on this shared project) join Finance.
+create or replace function public.fin_claim_profile(p_username text, p_name text) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then raise exception 'not authenticated'; end if;
+  insert into public.fin_profiles (id, username, full_name, role)
+  values (auth.uid(), lower(p_username), coalesce(p_name, ''),
+    case when not exists (select 1 from public.fin_profiles) then 'ADMIN' else 'PENDING' end)
+  on conflict (id) do nothing;
+end $$;
+revoke all on function public.fin_claim_profile(text, text) from public, anon;
+grant execute on function public.fin_claim_profile(text, text) to authenticated;
+notify pgrst, 'reload schema';

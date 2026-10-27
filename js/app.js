@@ -1330,7 +1330,27 @@ async function handleSignup(){
   });
   setBusy(btn, false);
   if (error){
-    err.textContent = /already registered|already exists|duplicate|database error/i.test(error.message) ? 'That username or email is already taken.' : error.message;
+    if (/already registered|already exists|duplicate|database error/i.test(error.message)){
+      // Email may already exist from another NidusLab app on the shared login: sign in with the same password and join Finance.
+      setBusy(btn, true, 'Linking account…');
+      const { error: e2 } = await sb.auth.signInWithPassword({ email, password });
+      if (!e2){
+        const { error: e3 } = await sb.rpc('fin_claim_profile', { p_username: username, p_name: name });
+        setBusy(btn, false);
+        if (e3){
+          await sb.auth.signOut();
+          err.textContent = /duplicate|unique/i.test(e3.message) ? 'That username is already taken. Try another.' : e3.message;
+          return;
+        }
+        await afterLogin(); return;
+      }
+      setBusy(btn, false);
+      err.textContent = raw.includes('@')
+        ? 'This email already has a NidusLab account. Enter that account\'s password here, or use a different email/username.'
+        : 'That username is already taken.';
+      return;
+    }
+    err.textContent = error.message;
     return;
   }
   if (!d.session){ err.textContent = 'Account created, but email confirmation is on. Ask the admin to disable it.'; return; }

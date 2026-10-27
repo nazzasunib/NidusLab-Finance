@@ -1310,6 +1310,7 @@ async function handleSignup(){
   const raw = $('signup_username').value.trim().toLowerCase();
   const password = $('signup_password').value;
   const confirmPw = $('signup_confirm').value;
+  const invite = ($('signup_invite').value || '').trim();
   const err = $('signup_error'); err.textContent = '';
   if (!name || !raw || !password){ err.textContent = 'Please fill in all fields.'; return; }
   let email, username;
@@ -1326,7 +1327,7 @@ async function handleSignup(){
   const btn = $('signupBtn'); setBusy(btn, true, 'Creating account…');
   const { data: d, error } = await sb.auth.signUp({
     email, password,
-    options: { data: { app: 'niduslab_finance', name, username } },
+    options: { data: { app: 'niduslab_finance', name, username, invite } },
   });
   setBusy(btn, false);
   if (error){
@@ -1335,7 +1336,7 @@ async function handleSignup(){
       setBusy(btn, true, 'Linking account…');
       const { error: e2 } = await sb.auth.signInWithPassword({ email, password });
       if (!e2){
-        const { error: e3 } = await sb.rpc('fin_claim_profile', { p_username: username, p_name: name });
+        const { error: e3 } = await sb.rpc('fin_claim_profile', { p_username: username, p_name: name, p_invite: invite });
         setBusy(btn, false);
         if (e3){
           await sb.auth.signOut();
@@ -1561,10 +1562,26 @@ function renderUsersShell(){
     <div class="page-head">
       <div><h1>Users &amp; Access</h1><p class="subtitle" style="margin-bottom:0;">Approve new sign-ups and set roles. <b>Admin</b> &amp; <b>Finance</b> can add / edit / delete. <b>Employee</b> is view-only. <b>Pending</b> has no access.</p></div>
     </div>
+    <div class="card" id="inviteCard" style="margin-top:18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;"><div style="flex:1;min-width:220px;"><div style="font-weight:700;">Team invite code</div><div class="muted" style="font-size:13px;">Share with your team. Anyone who signs up with it joins instantly as <b>Employee</b> (view-only). Change role below if needed.</div></div><code id="inviteCode" style="font-size:18px;font-weight:800;letter-spacing:1px;padding:8px 14px;border-radius:10px;background:#eef2fb;">…</code><button class="btn secondary" onclick="copyInvite()">Copy</button><button class="btn secondary" onclick="newInvite()">New code</button></div>
     <div class="card" style="padding:0;overflow-x:auto;margin-top:18px;" id="usersCard"><div class="empty">Loading users…</div></div>`;
+}
+async function loadInvite(){
+  const { data } = await sb.from('fin_settings').select('value').eq('key','invite_code').maybeSingle();
+  const el = $('inviteCode'); if (el) el.textContent = data ? data.value : '—';
+}
+function copyInvite(){ const t = $('inviteCode').textContent; try { navigator.clipboard.writeText(t); toast('Code copied.'); } catch (e){ toast(t); } }
+async function newInvite(){
+  if (!confirm('Generate a new code? The old code will stop working.')) return;
+  const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let c = '';
+  for (let i = 0; i < 4; i++) c += a[Math.floor(Math.random() * a.length)];
+  const code = 'NIDUS-FIN-' + c;
+  const { error } = await sb.from('fin_settings').upsert({ key:'invite_code', value: code });
+  if (error){ toast('Could not change code: ' + error.message, 'err'); return; }
+  toast('New code ready.'); loadInvite();
 }
 async function loadUsersTab(){
   const card = $('usersCard'); if (!card) return;
+  loadInvite();
   const { data: rows, error } = await sb.from('fin_profiles').select('*').order('created_at', { ascending:false });
   if (error){ card.innerHTML = `<div class="empty">Could not load users: ${esc(error.message)}</div>`; return; }
   pendingCount = rows.filter(r => r.role === 'PENDING').length; renderNav();

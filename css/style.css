@@ -293,3 +293,13 @@ tr:hover td{background:#f7f9fe;}
 
 /* ---------------- Report on screen (colours live in css/report.css) ---------------- */
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important;scroll-behavior:auto !important;}}
+
+/* chips / cost fund */
+.chips{display:flex;flex-wrap:wrap;gap:8px;}
+.chip-btn{border:1.5px solid #d5def2;background:#f6f8fd;color:var(--navy-700);padding:7px 14px;border-radius:99px;font-size:13px;font-weight:600;cursor:pointer;transition:all .18s;font-family:inherit;}
+.chip-btn:hover{border-color:var(--blue-600);transform:translateY(-1px);}
+.chip-btn.on{background:linear-gradient(135deg,#16275f,#2d4a8f);color:#fff;border-color:transparent;box-shadow:0 6px 14px rgba(45,74,143,.3);}
+.chip-btn.add{border-style:dashed;}
+.fund-sum{margin-bottom:18px;}
+.fund-pill{background:#eef2fb;border-radius:12px;padding:8px 14px;font-size:13px;color:var(--navy-700);}
+.fund-pill b{margin-right:6px;}

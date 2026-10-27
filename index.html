@@ -64,13 +64,14 @@
       </div>
       <div id="signupFormBox" class="hidden">
         <h2>Create account</h2>
-        <p class="lead">New accounts are activated after admin approval.</p>
+        <p class="lead">Have a team code? Enter it to join instantly. Otherwise an admin approves you.</p>
         <div class="field"><label>Full Name</label><input type="text" id="signup_name"></div>
         <div class="field"><label>Username or Email</label><input type="text" id="signup_username" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
         <div class="field-row">
           <div class="field"><label>Password</label><input type="password" id="signup_password" autocomplete="new-password"></div>
           <div class="field"><label>Confirm</label><input type="password" id="signup_confirm" autocomplete="new-password" onkeydown="if(event.key==='Enter')handleSignup()"></div>
         </div>
+        <div class="field"><label>Team Code <span style="font-weight:400;opacity:.7">(optional)</span></label><input type="text" id="signup_invite" autocapitalize="characters" spellcheck="false" placeholder="NIDUS-FIN-XXXX"></div>
         <div id="signup_error" class="auth-err"></div>
         <button class="btn" id="signupBtn" onclick="handleSignup()">Create Account</button>
         <p class="auth-switch">Already have an account? <a href="#" onclick="showAuthForm('login');return false;">Sign In</a></p>

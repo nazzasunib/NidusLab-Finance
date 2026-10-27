@@ -88,7 +88,9 @@ language plpgsql security definer set search_path = '' as $$
 begin
   if new.raw_user_meta_data ->> 'app' = 'niduslab_finance' then
     insert into public.fin_profiles (id, username, full_name, role)
-    values (new.id, lower(new.raw_user_meta_data ->> 'username'), coalesce(new.raw_user_meta_data ->> 'name', ''), 'PENDING')
+    values (new.id, lower(new.raw_user_meta_data ->> 'username'), coalesce(new.raw_user_meta_data ->> 'name', ''),
+      -- first person to join becomes ADMIN; everyone after waits for approval
+      case when not exists (select 1 from public.fin_profiles) then 'ADMIN' else 'PENDING' end)
     on conflict (id) do nothing;
   end if;
   return new;
@@ -171,3 +173,127 @@ insert into public.fin_employees (name) values ('Prima Islam'), ('Rahim Uddin'),
 on conflict (name) do nothing;
 
 notify pgrst, 'reload schema';
+-- Lets an existing NidusLab login (e.g. from another app on this shared project) join Finance.
+create or replace function public.fin_claim_profile(p_username text, p_name text) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then raise exception 'not authenticated'; end if;
+  insert into public.fin_profiles (id, username, full_name, role)
+  values (auth.uid(), lower(p_username), coalesce(p_name, ''),
+    case when not exists (select 1 from public.fin_profiles) then 'ADMIN' else 'PENDING' end)
+  on conflict (id) do nothing;
+end $$;
+revoke all on function public.fin_claim_profile(text, text) from public, anon;
+grant execute on function public.fin_claim_profile(text, text) to authenticated;
+notify pgrst, 'reload schema';
+-- Team invite code: people who sign up with the code join as EMPLOYEE (view-only) instantly.
+-- Without the code they stay PENDING until an admin approves. First ever user is ADMIN.
+create table if not exists public.fin_settings (key text primary key, value text not null);
+alter table public.fin_settings enable row level security;
+revoke all on public.fin_settings from anon;
+grant select, insert, update on public.fin_settings to authenticated;
+drop policy if exists fin_settings_admin on public.fin_settings;
+create policy fin_settings_admin on public.fin_settings for all to authenticated
+  using (public.fin_is_admin()) with check (public.fin_is_admin());
+insert into public.fin_settings (key, value) values ('invite_code', 'NIDUS-FIN-7K3Q') on conflict (key) do nothing;
+
+create or replace function public.fin_pick_role(p_code text) returns text
+language sql stable security definer set search_path = '' as $$
+  select case
+    when not exists (select 1 from public.fin_profiles) then 'ADMIN'
+    when coalesce(trim(p_code), '') <> '' and exists (select 1 from public.fin_settings where key = 'invite_code' and upper(value) = upper(trim(p_code))) then 'EMPLOYEE'
+    else 'PENDING' end
+$$;
+revoke all on function public.fin_pick_role(text) from public, anon, authenticated;
+
+create or replace function public.fin_handle_new_user() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.raw_user_meta_data ->> 'app' = 'niduslab_finance' then
+    insert into public.fin_profiles (id, username, full_name, role)
+    values (new.id, lower(new.raw_user_meta_data ->> 'username'), coalesce(new.raw_user_meta_data ->> 'name', ''),
+      public.fin_pick_role(new.raw_user_meta_data ->> 'invite'))
+    on conflict (id) do nothing;
+  end if;
+  return new;
+end $$;
+
+drop function if exists public.fin_claim_profile(text, text);
+create or replace function public.fin_claim_profile(p_username text, p_name text, p_invite text default null) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then raise exception 'not authenticated'; end if;
+  insert into public.fin_profiles (id, username, full_name, role)
+  values (auth.uid(), lower(p_username), coalesce(p_name, ''), public.fin_pick_role(p_invite))
+  on conflict (id) do nothing;
+end $$;
+revoke all on function public.fin_claim_profile(text, text, text) from public, anon;
+grant execute on function public.fin_claim_profile(text, text, text) to authenticated;
+notify pgrst, 'reload schema';
+select value as invite_code from public.fin_settings where key='invite_code';
+-- Features: cost funds, employee requests (approval), avatars, restricted employee visibility
+alter table public.fin_expenses add column if not exists cost_fund text not null default '';
+alter table public.fin_expenses add column if not exists status text not null default 'APPROVED';
+alter table public.fin_expenses drop constraint if exists fin_expenses_status_chk;
+alter table public.fin_expenses add constraint fin_expenses_status_chk check (status in ('PENDING','APPROVED'));
+alter table public.fin_profiles add column if not exists avatar_path text;
+
+create table if not exists public.fin_cost_funds (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  created_at timestamptz not null default now()
+);
+alter table public.fin_cost_funds enable row level security;
+revoke all on public.fin_cost_funds from anon;
+grant select, insert, delete on public.fin_cost_funds to authenticated;
+drop policy if exists fin_cost_funds_select on public.fin_cost_funds;
+drop policy if exists fin_cost_funds_insert on public.fin_cost_funds;
+drop policy if exists fin_cost_funds_delete on public.fin_cost_funds;
+create policy fin_cost_funds_select on public.fin_cost_funds for select to authenticated using (public.fin_can_read());
+create policy fin_cost_funds_insert on public.fin_cost_funds for insert to authenticated with check (public.fin_can_read());
+create policy fin_cost_funds_delete on public.fin_cost_funds for delete to authenticated using (public.fin_can_write());
+insert into public.fin_cost_funds (name) values ('NidusTime'), ('NidusJob'), ('NidusLab') on conflict (name) do nothing;
+
+-- Expenses: admin/finance see all; employee sees own and may only INSERT own pending requests
+drop policy if exists fin_expenses_select on public.fin_expenses;
+drop policy if exists fin_expenses_insert on public.fin_expenses;
+create policy fin_expenses_select on public.fin_expenses for select to authenticated
+  using (public.fin_can_write() or created_by = auth.uid());
+create policy fin_expenses_insert on public.fin_expenses for insert to authenticated
+  with check (public.fin_can_write() or (public.fin_role() = 'EMPLOYEE' and status = 'PENDING' and paid_by = 'EMPLOYEE' and created_by = auth.uid()));
+
+drop policy if exists fin_expense_payments_select on public.fin_expense_payments;
+create policy fin_expense_payments_select on public.fin_expense_payments for select to authenticated
+  using (public.fin_can_write() or exists (select 1 from public.fin_expenses e where e.id = expense_id and e.created_by = auth.uid()));
+
+drop policy if exists fin_funds_select on public.fin_funds;
+create policy fin_funds_select on public.fin_funds for select to authenticated using (public.fin_can_write());
+
+-- Members list (names for the Employee picker) visible to approved users
+drop policy if exists fin_profiles_members on public.fin_profiles;
+create policy fin_profiles_members on public.fin_profiles for select to authenticated
+  using (public.fin_can_read() and role <> 'PENDING');
+
+-- Own avatar
+create or replace function public.fin_set_avatar(p_path text) returns void
+language sql security definer set search_path = '' as $$
+  update public.fin_profiles set avatar_path = p_path where id = auth.uid()
+$$;
+revoke all on function public.fin_set_avatar(text) from public, anon;
+grant execute on function public.fin_set_avatar(text) to authenticated;
+
+-- Storage: employees may upload receipts / avatars; delete own avatar
+drop policy if exists fin_receipts_insert on storage.objects;
+create policy fin_receipts_insert on storage.objects for insert to authenticated
+  with check (bucket_id = 'fin-receipts' and public.fin_can_read());
+drop policy if exists fin_receipts_delete on storage.objects;
+create policy fin_receipts_delete on storage.objects for delete to authenticated
+  using (bucket_id = 'fin-receipts' and (public.fin_can_write() or name like 'avatars/' || auth.uid()::text || '/%'));
+
+do $$ begin
+  if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='fin_cost_funds') then
+    alter publication supabase_realtime add table public.fin_cost_funds;
+  end if;
+end $$;
+notify pgrst, 'reload schema';
+select count(*) as cost_funds from public.fin_cost_funds;

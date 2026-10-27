@@ -1307,22 +1307,30 @@ async function handleLogin(){
 }
 async function handleSignup(){
   const name = $('signup_name').value.trim();
-  const username = $('signup_username').value.trim().toLowerCase();
+  const raw = $('signup_username').value.trim().toLowerCase();
   const password = $('signup_password').value;
   const confirmPw = $('signup_confirm').value;
   const err = $('signup_error'); err.textContent = '';
-  if (!name || !username || !password){ err.textContent = 'Please fill in all fields.'; return; }
-  if (!/^[a-z0-9._-]{3,30}$/.test(username)){ err.textContent = 'Username: 3–30 characters, letters, numbers, . _ - only.'; return; }
+  if (!name || !raw || !password){ err.textContent = 'Please fill in all fields.'; return; }
+  let email, username;
+  if (raw.includes('@')){
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(raw)){ err.textContent = 'Enter a valid email address.'; return; }
+    email = raw; username = raw.split('@')[0].replace(/[^a-z0-9._-]/g, '').slice(0, 30);
+    if (username.length < 3) username = (username + 'user').slice(0, 30);
+  } else {
+    if (!/^[a-z0-9._-]{3,30}$/.test(raw)){ err.textContent = 'Username: 3–30 characters, letters, numbers, . _ - only.'; return; }
+    email = usernameToEmail(raw); username = raw;
+  }
   if (password.length < 6){ err.textContent = 'Password must be at least 6 characters.'; return; }
   if (password !== confirmPw){ err.textContent = 'Passwords do not match.'; return; }
   const btn = $('signupBtn'); setBusy(btn, true, 'Creating account…');
   const { data: d, error } = await sb.auth.signUp({
-    email: usernameToEmail(username), password,
+    email, password,
     options: { data: { app: 'niduslab_finance', name, username } },
   });
   setBusy(btn, false);
   if (error){
-    err.textContent = /already registered|already exists|duplicate/i.test(error.message) ? 'That username is already taken.' : error.message;
+    err.textContent = /already registered|already exists|duplicate|database error/i.test(error.message) ? 'That username or email is already taken.' : error.message;
     return;
   }
   if (!d.session){ err.textContent = 'Account created, but email confirmation is on. Ask the admin to disable it.'; return; }

@@ -279,7 +279,7 @@ tr:hover td{background:#f7f9fe;}
   .sidebar.open{left:0;}
   .mobile-topbar{display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#050e26,#0d1d45);color:#fff;padding:12px 18px;position:sticky;top:0;z-index:30;}
   .mobile-topbar .name{font-family:var(--font-display);font-weight:700;font-size:18px;display:flex;align-items:center;gap:10px;}
-  .mobile-topbar .name span{color:#8fb0ff;}
+  .mobile-topbar .name .nm span{color:#8fb0ff;}
   .overlay-dim{position:fixed;inset:0;background:rgba(5,14,38,.55);backdrop-filter:blur(3px);z-index:55;display:none;}
   .overlay-dim.open{display:block;}
   .field-row{grid-template-columns:1fr;}

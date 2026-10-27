@@ -56,7 +56,7 @@
       <div id="loginFormBox">
         <h2>Welcome back</h2>
         <p class="lead">Sign in to the Finance &amp; Accounting system.</p>
-        <div class="field"><label>Username</label><input type="text" id="login_username" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
+        <div class="field"><label>Username or Email</label><input type="text" id="login_username" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
         <div class="field"><label>Password</label><input type="password" id="login_password" autocomplete="current-password" onkeydown="if(event.key==='Enter')handleLogin()"></div>
         <div id="login_error" class="auth-err"></div>
         <button class="btn" id="loginBtn" onclick="handleLogin()">Sign In</button>
@@ -66,7 +66,7 @@
         <h2>Create account</h2>
         <p class="lead">New accounts are activated after admin approval.</p>
         <div class="field"><label>Full Name</label><input type="text" id="signup_name"></div>
-        <div class="field"><label>Username</label><input type="text" id="signup_username" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
+        <div class="field"><label>Username or Email</label><input type="text" id="signup_username" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
         <div class="field-row">
           <div class="field"><label>Password</label><input type="password" id="signup_password" autocomplete="new-password"></div>
           <div class="field"><label>Confirm</label><input type="password" id="signup_confirm" autocomplete="new-password" onkeydown="if(event.key==='Enter')handleSignup()"></div>
@@ -110,7 +110,7 @@
 
   <div class="main">
     <div class="mobile-topbar" style="display:none;" id="mobileTopbar">
-      <div class="name"><img src="assets/logo-white.png" alt="" style="width:30px;height:30px;">Nidus<span>Lab</span></div>
+      <div class="name"><img src="assets/logo-white.png" alt="" style="width:30px;height:30px;"><span class="nm">Nidus<span>Lab</span></span></div>
       <div style="display:flex;align-items:center;gap:12px;">
         <div class="avatar" id="mobile_avatar" style="width:32px;height:32px;font-size:14px;border-radius:10px;">?</div>
         <div onclick="openSidebar()" style="cursor:pointer;font-size:22px;line-height:1;">☰</div>

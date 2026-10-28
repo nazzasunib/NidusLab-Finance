@@ -987,6 +987,8 @@ function showExpenseDetail(id){
       <div style="font-size:13px;line-height:1.9;">
         <div><span class="muted">Paid By:</span> ${PAID_BY_LABEL[e.paidBy]}${e.paidBy==='EMPLOYEE'?' — '+esc(employeeName(e)):''}</div>
         <div><span class="muted">Payment Method:</span> ${METHODS[e.paymentMethod]||esc(e.paymentMethod)}</div>
+        ${e.costFund ? `<div><span class="muted">Cost Fund:</span> ${esc(e.costFund)}</div>` : ''}
+        ${e.approvedByName ? `<div><span class="muted">Approved by:</span> <b>${esc(e.approvedByName)}</b>${e.approvedAt ? ' · ' + new Date(e.approvedAt).toLocaleString('en-GB') : ''}</div>` : ''}
         ${e.notes ? `<div><span class="muted">Notes:</span> ${esc(e.notes)}</div>` : ''}
       </div>
     </div>
@@ -1437,7 +1439,7 @@ function buildData(emp, exp, pay, fund, cf){
       id:r.id, date:r.date, category:r.category, accountCode: CATEGORY_ACCOUNT[r.category] || r.account_code || '5150', accountLabel:null,
       description:r.description || '', amount:num(r.amount), paidBy:r.paid_by, paymentMethod:r.payment_method || 'CASH',
       employee:r.paid_by === 'EMPLOYEE' ? (r.employee || '') : null, notes:r.notes || '',
-      costFund:r.cost_fund || '', status:r.status || 'APPROVED',
+      costFund:r.cost_fund || '', status:r.status || 'APPROVED', approvedByName:r.approved_by_name || '', approvedAt:r.approved_at || null,
       photoPath:r.photo_path || null, photoName:r.photo_name || null, photoMime:r.photo_mime || null, photo:null,
       createdAt:Date.parse(r.created_at) || 0, payments:[],
     };
@@ -1834,9 +1836,10 @@ function renderMine(){
   const body = rows.length ? rows.map(e => {
     const paid = sumBy(e.payments || [], p => p.amount), left = round2(e.amount - paid);
     const st = e.status === 'PENDING' ? '<span class="badge-status badge-pending">Pending approval</span>'
-      : left <= 0 ? '<span class="badge-status badge-reimbursed">Received</span>'
+      : (left <= 0 ? '<span class="badge-status badge-reimbursed">Received</span>'
       : paid > 0 ? `<span class="badge-status badge-partial">Partly received</span><div class="amber" style="font-size:11.5px;margin-top:3px;">Due ${formatBDT(left)}</div>`
-      : `<span class="badge-status badge-partial">Approved</span><div class="amber" style="font-size:11.5px;margin-top:3px;">You get ${formatBDT(left)}</div>`;
+      : `<span class="badge-status badge-partial">Approved</span><div class="amber" style="font-size:11.5px;margin-top:3px;">You get ${formatBDT(left)}</div>`)
+        + (e.approvedByName ? `<div class="muted" style="font-size:11.5px;margin-top:3px;">✓ Approved by ${esc(e.approvedByName)}</div>` : '');
     return `<tr><td style="white-space:nowrap;">${formatDate(e.date)}</td><td>${e.costFund ? `<span class="tag">${esc(e.costFund)}</span>` : '—'}</td><td>${esc(e.category)}</td>
       <td style="max-width:220px;">${esc(e.description || '—')}${e.photo ? ' 📎' : ''}</td><td class="num"><b>${formatBDT(e.amount)}</b></td><td>${st}</td></tr>`;
   }).join('') : `<tr><td colspan="6" class="empty">No expenses yet. Tap "+ Request Expense".</td></tr>`;

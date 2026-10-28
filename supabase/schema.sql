@@ -417,3 +417,29 @@ language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function public.fin_login_email(text) from public;
 grant execute on function public.fin_login_email(text) to anon, authenticated;
+-- Record who approved an expense request (set by the database, cannot be faked from the browser).
+alter table public.fin_expenses add column if not exists approved_by uuid references auth.users(id) on delete set null;
+alter table public.fin_expenses add column if not exists approved_by_name text;
+alter table public.fin_expenses add column if not exists approved_at timestamptz;
+
+create or replace function public.fin_stamp_approval() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare nm text; rl text;
+begin
+  if tg_op = 'UPDATE' and old.status = 'PENDING' and new.status = 'APPROVED' then
+    select coalesce(nullif(full_name, ''), username), role into nm, rl from public.fin_profiles where id = auth.uid();
+    new.approved_by := auth.uid();
+    new.approved_by_name := case when rl = 'SUPER_ADMIN' then 'Admin' else coalesce(nm, 'Admin') end;
+    new.approved_at := now();
+  elsif tg_op = 'UPDATE' then
+    new.approved_by := old.approved_by; new.approved_by_name := old.approved_by_name; new.approved_at := old.approved_at;
+  else
+    new.approved_by := null; new.approved_by_name := null; new.approved_at := null;
+  end if;
+  return new;
+end $$;
+revoke all on function public.fin_stamp_approval() from public, anon, authenticated;
+drop trigger if exists fin_expenses_stamp_approval on public.fin_expenses;
+create trigger fin_expenses_stamp_approval before insert or update on public.fin_expenses
+  for each row execute function public.fin_stamp_approval();
+notify pgrst, 'reload schema';

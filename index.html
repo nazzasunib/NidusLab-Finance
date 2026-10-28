@@ -65,7 +65,7 @@
       </div>
       <div id="signupFormBox" class="hidden">
         <h2>Create account</h2>
-        <p class="lead">Have a team code? Enter it to join instantly. Otherwise an admin approves you.</p>
+        <p class="lead">After you sign up, the admin approves you and sets your role.</p>
         <div class="field"><label>Full Name</label><input type="text" id="signup_name"></div>
         <div class="field"><label>Username or Email</label><input type="text" id="signup_username" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
         <div class="field-row">
@@ -171,6 +171,7 @@
     <div class="field-row">
       <div class="field">
         <label>Category</label>
+        <input type="search" id="exp_cat_search" placeholder="Search category… (e.g. recharge, ads, banner)" oninput="filterCategories()" style="margin-bottom:6px;" autocomplete="off">
         <select id="exp_category" onchange="onCategoryChange()"></select>
       </div>
       <div class="field" id="exp_method_field">

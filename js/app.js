@@ -2,12 +2,13 @@
 const DATA_START = '2026-10-01';            // all records before this date are purged
 const END = '9999-12-31';
 const DEFAULT_EMPLOYEES = ['Prima Islam', 'Rahim Uddin', 'Karim Ahmed'];
-const EXPENSE_CATEGORIES = ['T-shirt / Merchandise','Printing','Food & Refreshment','Transport','Event','Marketing','Advertising','Office Supplies','Stationery','Courier & Delivery','Software & Subscription','Internet & Communication','Travel','Accommodation','Client Meeting','Campus Visit','Seminar','Training & Development','Miscellaneous'];
+const EXPENSE_CATEGORIES = ['Accommodation','Advertising','Bank / bKash Charge','Banner / Festoon','Billboard / Outdoor Ad','Booth / Stall Rent','Brochure','Campus Drive','Campus Visit','Client Meeting','Commission / Referral','Content Creation','Courier & Delivery','Data Pack','Decoration','Domain & Hosting','Drinking Water','Email Marketing','Entertainment','Event','Event Staff / Volunteer','Facebook / Meta Ads','Food & Refreshment','Fuel','Gift & Giveaway','Google Ads','Graphic Design','Influencer Marketing','Internet & Communication','Internet / WiFi Bill','Job Fair','Lead Generation / Data','Leaflet / Flyer','LinkedIn Ads','Lunch / Dinner','Market Research / Survey','Marketing','Miscellaneous','Mobile Recharge','Newspaper / Media Ad','Office Supplies','Parking & Toll','Photocopy','Photography & Videography','Post Boosting / Promotion','Poster / Standee','Printing','Rickshaw / CNG / Ride','Seminar','SEO','SMS Marketing','Software & Subscription','Sound & Light','Sponsorship','Stationery','Sticker / PVC','T-shirt / Merchandise','Tea & Snacks','Training & Development','Transport','Travel','Venue Rent','Video Editing','Visiting Card','Website','YouTube / TikTok Ads'];
 const CATEGORY_ACCOUNT = {
   'T-shirt / Merchandise':'5050','Printing':'5040','Food & Refreshment':'5030','Transport':'5020','Event':'5110',
   'Marketing':'5000','Advertising':'5010','Office Supplies':'5060','Stationery':'5060','Courier & Delivery':'5120',
   'Software & Subscription':'5070','Internet & Communication':'5080','Travel':'5090','Accommodation':'5100',
   'Client Meeting':'5130','Campus Visit':'5090','Seminar':'5110','Training & Development':'5140','Miscellaneous':'5150',
+  'Mobile Recharge':'5080','Data Pack':'5080','Internet / WiFi Bill':'5080','SMS Marketing':'5080','Facebook / Meta Ads':'5010','Google Ads':'5010','LinkedIn Ads':'5010','YouTube / TikTok Ads':'5010','Post Boosting / Promotion':'5010','Newspaper / Media Ad':'5010','Billboard / Outdoor Ad':'5010','Influencer Marketing':'5000','Content Creation':'5000','Photography & Videography':'5000','Graphic Design':'5000','Video Editing':'5000','Sponsorship':'5000','SEO':'5000','Lead Generation / Data':'5000','Market Research / Survey':'5000','Commission / Referral':'5000','Banner / Festoon':'5040','Leaflet / Flyer':'5040','Brochure':'5040','Visiting Card':'5040','Poster / Standee':'5040','Sticker / PVC':'5040','Photocopy':'5040','Gift & Giveaway':'5050','Booth / Stall Rent':'5110','Venue Rent':'5110','Decoration':'5110','Sound & Light':'5110','Event Staff / Volunteer':'5110','Job Fair':'5110','Campus Drive':'5090','Rickshaw / CNG / Ride':'5020','Fuel':'5020','Parking & Toll':'5020','Tea & Snacks':'5030','Lunch / Dinner':'5030','Drinking Water':'5030','Email Marketing':'5070','Domain & Hosting':'5070','Website':'5070','Entertainment':'5130','Bank / bKash Charge':'5150',
 };
 const METHODS = { CASH:'Cash', BANK_TRANSFER:'Bank Transfer', BKASH:'bKash', NAGAD:'Nagad', CARD:'Card', OTHER:'Other' };
 const PAID_BY_LABEL = { COMPANY:'Company Fund', EMPLOYEE:'Employee' };
@@ -630,7 +631,8 @@ function prepExpenseModal(){
   document.getElementById('expenseSaveBtn').textContent = 'Save Expense';
   const dateEl = document.getElementById('exp_date');
   dateEl.min = DATA_START; dateEl.value = todayStr() < DATA_START ? DATA_START : todayStr();
-  document.getElementById('exp_category').innerHTML = EXPENSE_CATEGORIES.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('') + `<option value="OTHERS">Others</option>`;
+  document.getElementById('exp_cat_search').value = '';
+  document.getElementById('exp_category').innerHTML = categoryOptionsHtml(EXPENSE_CATEGORIES);
   document.getElementById('exp_method').innerHTML = methodOptions('CASH');
   refreshEmployeeDropdown();
   setCostFundFor(null);
@@ -1908,4 +1910,15 @@ async function renameMember(id, current){
   toast('Name updated.');
   await reloadData(true); animNext = false; render();
   if (state.currentTab === 'users') loadUsersTab();
+}
+
+/* ----- Searchable category list ----- */
+function categoryOptionsHtml(list){ return list.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('') + `<option value="OTHERS">Others (type your own)</option>`; }
+function filterCategories(){
+  const q = $('exp_cat_search').value.trim().toLowerCase();
+  const sel = $('exp_category'), cur = sel.value;
+  const list = q ? EXPENSE_CATEGORIES.filter(c => c.toLowerCase().includes(q)) : EXPENSE_CATEGORIES;
+  sel.innerHTML = categoryOptionsHtml(list);
+  if (list.includes(cur)) sel.value = cur; else sel.value = list[0] || 'OTHERS';
+  onCategoryChange();
 }

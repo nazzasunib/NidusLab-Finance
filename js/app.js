@@ -645,7 +645,7 @@ function prepExpenseModal(){
   applyRoleToExpenseModal();
 }
 function openEditExpense(id){
-  const e = data.expenses.find(x => x.id === id);
+  const e = allExp(data).find(x => x.id === id);
   if (!e) return;
   closeModal('detailModal');
   prepExpenseModal();
@@ -662,7 +662,6 @@ function openEditExpense(id){
   else { catSelect.value = 'OTHERS'; document.getElementById('exp_category_other').value = e.category; document.getElementById('exp_category_other_field').classList.remove('hidden'); }
   document.querySelector(`input[name="exp_paidby"][value="${e.paidBy}"]`).checked = true;
   if (e.paidBy === 'EMPLOYEE'){
-    if (e.employee && !data.employees.includes(e.employee)) { data.employees.push(e.employee); saveData(); }
     refreshEmployeeDropdown(e.employee);
   }
   if (e.photo || e.photoPath){
@@ -671,6 +670,7 @@ function openEditExpense(id){
   }
   setCostFundFor(e);
   togglePaidBy();
+  applyRoleToExpenseModal();
   openModal('expenseModal');
 }
 function onCategoryChange(){
@@ -751,12 +751,18 @@ function saveExpense(){
     employee: paidBy === 'EMPLOYEE' ? employee : null, notes, costFund, ...photoFields() };
 
   if (!canWrite()){
-    if (editingId) return;
+    if (editingId){
+      const e = data.mine.find(x => x.id === editingId); if (!e) return;
+      if ((e.payments || []).length){ alert('Part of this is already paid back to you. Ask an admin to change it.'); return; }
+      const wasApproved = e.status === 'APPROVED';
+      Object.assign(e, fields, { paidBy:'EMPLOYEE', employee:me.name, status:'PENDING', approvedByName:'' });
+      saveData(); closeModal('expenseModal'); toast(wasApproved ? 'Changes sent. It needs approval again.' : 'Request updated.'); render(); return;
+    }
     data.mine.push({ id:uid(), createdAt:Date.now(), payments:[], status:'PENDING', ...fields, paidBy:'EMPLOYEE', employee:me.name });
     saveData(); closeModal('expenseModal'); toast('Request sent to admin.'); render(); return;
   }
   if (editingId){
-    const e = data.expenses.find(x => x.id === editingId);
+    const e = allExp(data).find(x => x.id === editingId);
     if (!e) return;
     let payments = e.payments || [];
     const kindNeeded = paidBy === 'EMPLOYEE' ? 'REIMBURSE' : null;
@@ -1775,12 +1781,13 @@ function refreshEmployeeDropdown(selectValue){
 function applyRoleToExpenseModal(){
   const w = canWrite();
   $('exp_paidby_field').classList.toggle('hidden', !w);
+  const editing = !!$('exp_editing_id').value;
   if (!w){
     document.querySelector('input[name="exp_paidby"][value="EMPLOYEE"]').checked = true;
     refreshEmployeeDropdown(me.name);
     $('exp_employee_field').classList.add('hidden');
-    $('expenseModalTitle').textContent = 'Request Expense';
-    $('expenseSaveBtn').textContent = 'Send Request';
+    $('expenseModalTitle').textContent = editing ? 'Edit Request' : 'Request Expense';
+    $('expenseSaveBtn').textContent = editing ? 'Save & Send for Approval' : 'Send Request';
     updateExpensePreview();
   }
 }
@@ -1841,9 +1848,10 @@ function renderMine(){
       : `<span class="badge-status badge-partial">Approved</span><div class="amber" style="font-size:11.5px;margin-top:3px;">You get ${formatBDT(left)}</div>`)
         + (e.approvedByName ? `<div class="muted" style="font-size:11.5px;margin-top:3px;">✓ Approved by ${esc(e.approvedByName)}</div>` : '');
     return `<tr><td style="white-space:nowrap;">${formatDate(e.date)}</td><td>${e.costFund ? `<span class="tag">${esc(e.costFund)}</span>` : '—'}</td><td>${esc(e.category)}</td>
-      <td style="max-width:220px;">${esc(e.description || '—')}${e.photo ? ' 📎' : ''}</td><td class="num"><b>${formatBDT(e.amount)}</b></td><td>${st}</td></tr>`;
-  }).join('') : `<tr><td colspan="6" class="empty">No expenses yet. Tap "+ Request Expense".</td></tr>`;
-  return `<div class="page-head"><div><h1>My Dashboard</h1><p class="subtitle" style="margin-bottom:0;">Hi ${esc(me.name)} — how much you will get back, and your own expenses. New expenses go to admin for approval.</p></div>
+      <td style="max-width:220px;">${esc(e.description || '—')}${e.photo ? ' 📎' : ''}</td><td class="num"><b>${formatBDT(e.amount)}</b></td><td>${st}</td>
+      <td>${(e.payments || []).length ? '' : `<button class="btn sm outline" onclick="openEditExpense('${e.id}')">✎ Edit</button>`}</td></tr>`;
+  }).join('') : `<tr><td colspan="7" class="empty">No expenses yet. Tap "+ Request Expense".</td></tr>`;
+  return `<div class="page-head"><div><h1>My Dashboard</h1><p class="subtitle" style="margin-bottom:0;">Hi ${esc(me.name)} — how much you will get back, and your own expenses. New or edited expenses go to admin for approval.</p></div>
     <div class="actions"><button class="btn" onclick="openExpenseModal()">+ Request Expense</button></div></div>
     <div class="kpi-grid">
       ${kpiCard({ label:'You Will Get (Koto Tk Pabo)', value:due, cls:'warning', icon:KPI_SVG.wallet, sub:'Still to receive from company', big:true })}
@@ -1851,7 +1859,7 @@ function renderMine(){
       ${kpiCard({ label:'Approved Cost', value:total, cls:'negative', sub:`${appr.length} approved expense(s)` })}
       ${kpiCard({ label:'Pending Requests', value:pendAmt, cls:'info', icon:KPI_SVG.layers, sub:`${pend.length} waiting` })}
     </div>
-    <div class="card" style="padding:0;overflow-x:auto;"><table><thead><tr><th>Date</th><th>Cost Fund</th><th>Category</th><th>Description</th><th class="num">Amount</th><th>Status</th></tr></thead><tbody>${body}</tbody></table></div>`;
+    <div class="card" style="padding:0;overflow-x:auto;"><table><thead><tr><th>Date</th><th>Cost Fund</th><th>Category</th><th>Description</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 /* ----- Settings + avatar ----- */
@@ -1957,6 +1965,7 @@ function showRequestDetail(id){
     </div>
     <div class="modal-actions">
       <button class="btn success" onclick="closeModal('detailModal');approveRequest('${e.id}')">✓ Approve</button>
+      <button class="btn outline" onclick="closeModal('detailModal');openEditExpense('${e.id}')">✎ Edit</button>
       <button class="btn danger" onclick="closeModal('detailModal');rejectRequest('${e.id}')">Reject</button>
       <button class="btn secondary" onclick="closeModal('detailModal')">Close</button>
     </div>`;

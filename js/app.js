@@ -262,7 +262,7 @@ const NAV = [
   {id:'summary', label:'Summary', icon:ICONS.summary},
   {id:'requests', label:'Requests', icon:ICONS.reimbursements, writer:true},
   {id:'users', label:'Users & Access', icon:ICONS.users, admin:true},
-  {id:'mine', label:'My Expenses', icon:ICONS.expenses, emp:true},
+  {id:'mine', label:'Dashboard', icon:ICONS.dashboard, emp:true},
   {id:'settings', label:'Settings', icon:ICONS.accounts, any:true},
 ];
 let state = { currentTab: 'dashboard' };
@@ -1831,12 +1831,12 @@ function renderMine(){
     return `<tr><td style="white-space:nowrap;">${formatDate(e.date)}</td><td>${e.costFund ? `<span class="tag">${esc(e.costFund)}</span>` : '—'}</td><td>${esc(e.category)}</td>
       <td style="max-width:220px;">${esc(e.description || '—')}${e.photo ? ' 📎' : ''}</td><td class="num"><b>${formatBDT(e.amount)}</b></td><td>${st}</td></tr>`;
   }).join('') : `<tr><td colspan="6" class="empty">No expenses yet. Tap "+ Request Expense".</td></tr>`;
-  return `<div class="page-head"><div><h1>My Expenses</h1><p class="subtitle" style="margin-bottom:0;">Your own costs and how much you will get back. New expenses go to admin for approval.</p></div>
+  return `<div class="page-head"><div><h1>My Dashboard</h1><p class="subtitle" style="margin-bottom:0;">Hi ${esc(me.name)} — how much you will get back, and your own expenses. New expenses go to admin for approval.</p></div>
     <div class="actions"><button class="btn" onclick="openExpenseModal()">+ Request Expense</button></div></div>
     <div class="kpi-grid">
-      ${kpiCard({ label:'Approved Cost', value:total, cls:'negative', sub:`${appr.length} approved` })}
-      ${kpiCard({ label:'Received', value:got, cls:'positive', icon:KPI_SVG.check, sub:'Already reimbursed' })}
-      ${kpiCard({ label:'You Will Get', value:due, cls:'warning', icon:KPI_SVG.clock, sub:'Still to receive' })}
+      ${kpiCard({ label:'You Will Get (Koto Tk Pabo)', value:due, cls:'warning', icon:KPI_SVG.wallet, sub:'Still to receive from company', big:true })}
+      ${kpiCard({ label:'Received', value:got, cls:'positive', icon:KPI_SVG.check, sub:'Already paid back to you' })}
+      ${kpiCard({ label:'Approved Cost', value:total, cls:'negative', sub:`${appr.length} approved expense(s)` })}
       ${kpiCard({ label:'Pending Requests', value:pendAmt, cls:'info', icon:KPI_SVG.layers, sub:`${pend.length} waiting` })}
     </div>
     <div class="card" style="padding:0;overflow-x:auto;"><table><thead><tr><th>Date</th><th>Cost Fund</th><th>Category</th><th>Description</th><th class="num">Amount</th><th>Status</th></tr></thead><tbody>${body}</tbody></table></div>`;

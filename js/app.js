@@ -1597,7 +1597,7 @@ async function loadUsersTab(){
   card.innerHTML = `<table>
     <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Joined</th></tr></thead>
     <tbody>${rows.map(u => `<tr>
-      <td><b>${esc(u.full_name || '—')}</b>${u.id === me.id ? ' <span class="tag">You</span>' : ''}</td>
+      <td><b>${esc(u.full_name || '—')}</b>${u.id === me.id ? ' <span class="tag">You</span>' : ''} <button class="btn sm secondary" style="padding:3px 9px;margin-left:6px;" title="Edit name" onclick="renameMember('${u.id}', ${jsArg(u.full_name || '')})">✎ Edit</button></td>
       <td class="muted">${esc(u.username)}</td>
       <td><select class="inp role-sel ${u.role === 'PENDING' ? 'pending' : ''}" ${u.id === me.id ? 'disabled' : ''} onchange="changeUserRole('${u.id}', this.value)">
         ${['PENDING','EMPLOYEE','FINANCE','ADMIN'].map(r => `<option value="${r}" ${r === u.role ? 'selected' : ''}>${ROLE_LABEL[r]}</option>`).join('')}
@@ -1870,7 +1870,7 @@ function renderSettings(){
       <div class="avatar" id="set_avatar" style="width:92px;height:92px;font-size:36px;border-radius:26px;">${esc((me.name || '?').slice(0, 1).toUpperCase())}</div>
       <div style="flex:1;min-width:220px;"><div style="font-size:20px;font-weight:800;">${esc(me.name)}</div>
         <div class="muted">${esc(me.email || '')}</div><div class="muted">${esc(ROLE_LABEL[me.role] || me.role)} · @${esc(me.username)}</div>
-        <div class="row" style="gap:8px;margin-top:12px;"><button class="btn sm" onclick="$('avatar_file').click()">Upload photo</button>${me.avatarPath ? '<button class="btn sm secondary" onclick="removeAvatar()">Remove</button>' : ''}</div>
+        <div class="row" style="gap:8px;margin-top:12px;"><button class="btn sm" onclick="$('avatar_file').click()">Upload photo</button><button class="btn sm secondary" onclick="renameMember(me.id, me.name)">✎ Edit name</button>${me.avatarPath ? '<button class="btn sm secondary" onclick="removeAvatar()">Remove</button>' : ''}</div>
         <input type="file" id="avatar_file" accept="image/*" class="hidden" onchange="uploadAvatar(event)"></div>
     </div>
     <div class="card" style="margin-top:18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:space-between;">
@@ -1881,4 +1881,19 @@ function renderSettings(){
       <div><div style="font-weight:700;">Sign out</div><div class="muted" style="font-size:13px;">Log out of this device.</div></div>
       <button class="btn outline" onclick="handleLogout()">Logout</button>
     </div>`;
+}
+
+/* ----- Rename member (admin: anyone, others: self). Old expenses follow the new name. ----- */
+async function renameMember(id, current){
+  const name = (prompt('New name:', current || '') || '').trim();
+  if (!name || name === current) return;
+  if (name.length > 60){ toast('Name is too long (max 60).', 'err'); return; }
+  const { error } = await sb.rpc('fin_rename_member', { p_id: id, p_name: name });
+  if (error){ toast('Could not rename: ' + error.message, 'err'); return; }
+  if (id === me.id){
+    me.name = name; $('topbar_name').textContent = name; applyAvatar();
+  }
+  toast('Name updated.');
+  await reloadData(true); animNext = false; render();
+  if (state.currentTab === 'users') loadUsersTab();
 }

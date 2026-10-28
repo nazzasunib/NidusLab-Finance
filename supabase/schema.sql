@@ -443,3 +443,21 @@ drop trigger if exists fin_expenses_stamp_approval on public.fin_expenses;
 create trigger fin_expenses_stamp_approval before insert or update on public.fin_expenses
   for each row execute function public.fin_stamp_approval();
 notify pgrst, 'reload schema';
+
+-- Approved by = approver's full name (every admin shows their own name).
+create or replace function public.fin_stamp_approval() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare nm text;
+begin
+  if tg_op = 'UPDATE' and old.status = 'PENDING' and new.status = 'APPROVED' then
+    select coalesce(nullif(btrim(full_name), ''), username) into nm from public.fin_profiles where id = auth.uid();
+    new.approved_by := auth.uid();
+    new.approved_by_name := coalesce(nm, 'Unknown');
+    new.approved_at := now();
+  elsif tg_op = 'UPDATE' then
+    new.approved_by := old.approved_by; new.approved_by_name := old.approved_by_name; new.approved_at := old.approved_at;
+  else
+    new.approved_by := null; new.approved_by_name := null; new.approved_at := null;
+  end if;
+  return new;
+end $$;

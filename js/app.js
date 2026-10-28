@@ -1363,7 +1363,16 @@ async function afterLogin(){
     const prof_ = prof2;
     const prof = prof_;
     me = { id: prof.id, username: prof.username, name: prof.full_name || prof.username, role: prof.role, email: (user.user_metadata || {}).real_email || user.email, authEmail: user.email, avatarPath: prof.avatar_path || null, avatarUrl: null };
-    if (prof.role === 'PENDING'){ $('pending_name').textContent = me.name; showScreen('pending'); return; }
+    if (prof.role === 'PENDING'){
+      $('pending_name').textContent = me.name; showScreen('pending');
+      clearInterval(window._pendPoll); // check every 6 s; open the app as soon as an admin approves
+      window._pendPoll = setInterval(async () => {
+        const { data: p2 } = await sb.from('fin_profiles').select('role').eq('id', prof.id).maybeSingle();
+        if (p2 && p2.role !== 'PENDING'){ clearInterval(window._pendPoll); afterLogin(); }
+      }, 6000);
+      return;
+    }
+    clearInterval(window._pendPoll);
     await enterApp();
   } catch (e){
     console.error(e); showScreen('auth');
@@ -1386,7 +1395,7 @@ async function handleChangePassword(){
 async function enterApp(){
   showScreen('app');
   $('topbar_name').textContent = me.name;
-  $('topbar_role').textContent = ROLE_LABEL[me.role] || me.role;
+  $('topbar_role').textContent = me.role === 'SUPER_ADMIN' ? 'Admin' : (ROLE_LABEL[me.role] || me.role);
   $('topbar_avatar').textContent = (me.name || '?').trim().slice(0, 1).toUpperCase();
   $('mobile_avatar').textContent = $('topbar_avatar').textContent;
   await loadAvatar();
@@ -1608,9 +1617,10 @@ async function loadUsersTab(){
     </tbody></table>`;
 }
 async function changeUserRole(id, role){
-  const { error } = await sb.from('fin_profiles').update({ role }).eq('id', id);
-  if (error){ toast('Could not change role: ' + error.message, 'err'); return; }
-  toast('Role updated.'); loadUsersTab();
+  const { data: upd, error } = await sb.from('fin_profiles').update({ role }).eq('id', id).select('id, role');
+  if (error){ toast('Could not change role: ' + error.message, 'err'); loadUsersTab(); return; }
+  if (!upd || !upd.length){ toast('Not allowed to change this user.', 'err'); loadUsersTab(); return; }
+  toast(`Role updated: ${ROLE_LABEL[role] || role}. They get access right away.`); loadUsersTab();
 }
 
 /* ---------- Attachments helpers used by the expense modal ---------- */

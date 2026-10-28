@@ -400,3 +400,11 @@ revoke all on function public.fin_pick_role(text) from public, anon, authenticat
 update public.fin_profiles set role = 'SUPER_ADMIN' where username = 'mdnazzas';
 notify pgrst, 'reload schema';
 select username, full_name, role from public.fin_profiles order by created_at;
+
+-- Super Admin is invisible: only the Super Admin sees that row; Admins and members never see it.
+drop policy if exists fin_profiles_select on public.fin_profiles;
+create policy fin_profiles_select on public.fin_profiles for select to authenticated
+  using (id = auth.uid() or public.fin_is_super() or (public.fin_is_admin() and role <> 'SUPER_ADMIN'));
+drop policy if exists fin_profiles_members on public.fin_profiles;
+create policy fin_profiles_members on public.fin_profiles for select to authenticated
+  using (public.fin_can_read() and role not in ('PENDING', 'SUPER_ADMIN'));

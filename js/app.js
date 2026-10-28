@@ -741,6 +741,7 @@ function saveExpense(){
   }
   if (!date || amount <= 0){ alert('Please enter a date and an amount greater than zero.'); return; }
   if (date < DATA_START){ alert(`Books start on ${formatDate(DATA_START)}. Please choose a date on or after that.`); return; }
+  if (!description){ alert('Please write a Description (what was this expense for?).'); document.getElementById('exp_description').focus(); return; }
   if (!costFund){ alert('Please choose a Cost Fund (NidusTime / NidusJob / NidusLab / Others).'); return; }
   if (paidBy === 'EMPLOYEE' && !employee){ alert('Please select which employee paid.'); return; }
 
@@ -1812,14 +1813,14 @@ function photoLink(e){ return e.photo ? `<a href="${e.photo}" target="_blank" re
 function renderRequests(){
   const list = [...data.requests].sort(byDateDesc);
   const total = sumBy(list, e => e.amount);
-  const rows = list.length ? list.map(e => `<tr>
+  const rows = list.length ? list.map(e => `<tr class="click-row" onclick="if(!event.target.closest('button,a'))showRequestDetail('${e.id}')" style="cursor:pointer;" title="Click for full details">
     <td style="white-space:nowrap;">${formatDate(e.date)}</td><td><b>${esc(e.employee || '—')}</b></td>
     <td>${e.costFund ? `<span class="tag">${esc(e.costFund)}</span>` : '—'}</td><td>${esc(e.category)}</td>
     <td style="max-width:220px;">${esc(e.description || '—')}${e.notes ? `<div class="muted" style="font-size:11.5px;">${esc(e.notes)}</div>` : ''}</td>
     <td>${photoLink(e)}</td><td class="num"><b>${formatBDT(e.amount)}</b></td>
     <td><div class="row" style="gap:6px;flex-wrap:nowrap;"><button class="btn sm success" onclick="approveRequest('${e.id}')">Approve</button><button class="btn sm danger" onclick="rejectRequest('${e.id}')">Reject</button></div></td></tr>`).join('')
     : `<tr><td colspan="8" class="empty">No pending requests.</td></tr>`;
-  return `<div class="page-head"><div><h1>Expense Requests</h1><p class="subtitle" style="margin-bottom:0;">Team members send expenses here. Approve to add them to the books (employee-paid, reimbursable).</p></div></div>
+  return `<div class="page-head"><div><h1>Expense Requests</h1><p class="subtitle" style="margin-bottom:0;">Team members send expenses here. Click a row to see full details, then Approve or Reject.</p></div></div>
     <div class="kpi-grid">${kpiCard({ label:'Requested Amount', value:total, cls:'warning', icon:KPI_SVG.clock, sub:`${list.length} waiting for approval` })}</div>
     <div class="card" style="padding:0;overflow-x:auto;"><table><thead><tr><th>Date</th><th>By</th><th>Cost Fund</th><th>Category</th><th>Description</th><th>Receipt</th><th class="num">Amount</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
@@ -1927,4 +1928,34 @@ function filterCategories(){
   sel.innerHTML = categoryOptionsHtml(list);
   if (list.includes(cur)) sel.value = cur; else sel.value = list[0] || 'OTHERS';
   onCategoryChange();
+}
+
+/* ----- Full request details before approval ----- */
+function showRequestDetail(id){
+  const e = (data.requests || []).find(x => x.id === id); if (!e) return;
+  const row = (k, v) => `<tr><td class="muted" style="width:38%;padding:8px 10px;">${k}</td><td style="padding:8px 10px;"><b>${v}</b></td></tr>`;
+  const isImg = !!e.photo && isImageFile(e);
+  $('detailContent').innerHTML = `
+    <h2 style="margin-bottom:4px;">Expense Request</h2>
+    <p class="muted" style="margin-top:0;">Check everything before approving.</p>
+    <table style="width:100%;border-collapse:collapse;">
+      ${row('Requested by', esc(e.employee || '—'))}
+      ${row('Date', formatDate(e.date))}
+      ${row('Amount', formatBDT(e.amount))}
+      ${row('Cost Fund', e.costFund ? `<span class="tag">${esc(e.costFund)}</span>` : '—')}
+      ${row('Category', esc(e.category))}
+      ${row('Description', esc(e.description || '—'))}
+      ${row('Payment Method', esc(METHODS[e.paymentMethod] || e.paymentMethod || '—'))}
+      ${row('Notes', e.notes ? esc(e.notes).replace(/\n/g, '<br>') : '—')}
+      ${row('Sent on', e.createdAt ? new Date(e.createdAt).toLocaleString('en-GB') : '—')}
+    </table>
+    <div style="margin-top:14px;"><div class="muted" style="margin-bottom:6px;">Receipt / File</div>
+      ${e.photo ? (isImg ? `<a href="${e.photo}" target="_blank" rel="noopener"><img src="${e.photo}" style="max-width:100%;max-height:320px;border-radius:12px;border:1px solid #e3e8f4;"></a>` : `<a class="btn sm secondary" href="${e.photo}" target="_blank" rel="noopener">📎 Open ${esc(e.photoName || 'file')}</a>`) : '<span class="muted">No receipt attached</span>'}
+    </div>
+    <div class="modal-actions">
+      <button class="btn success" onclick="closeModal('detailModal');approveRequest('${e.id}')">✓ Approve</button>
+      <button class="btn danger" onclick="closeModal('detailModal');rejectRequest('${e.id}')">Reject</button>
+      <button class="btn secondary" onclick="closeModal('detailModal')">Close</button>
+    </div>`;
+  openModal('detailModal');
 }

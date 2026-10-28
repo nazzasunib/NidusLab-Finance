@@ -408,3 +408,12 @@ create policy fin_profiles_select on public.fin_profiles for select to authentic
 drop policy if exists fin_profiles_members on public.fin_profiles;
 create policy fin_profiles_members on public.fin_profiles for select to authenticated
   using (public.fin_can_read() and role not in ('PENDING', 'SUPER_ADMIN'));
+
+-- Login by username: return the login email of a Finance username (Finance accounts only).
+create or replace function public.fin_login_email(p_username text) returns text
+language sql stable security definer set search_path = '' as $$
+  select u.email from public.fin_profiles p join auth.users u on u.id = p.id
+  where p.username = lower(btrim(p_username)) and u.email like '%@niduslab-finance.app' limit 1
+$$;
+revoke all on function public.fin_login_email(text) from public;
+grant execute on function public.fin_login_email(text) to anon, authenticated;

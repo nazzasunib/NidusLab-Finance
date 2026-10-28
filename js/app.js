@@ -1302,7 +1302,7 @@ function showAuthForm(which){
 
 /* ---------- Auth ---------- */
 async function handleLogin(){
-  const uname = $('login_username').value.trim();
+  const uname = $('login_username').value.trim().toLowerCase();
   const password = $('login_password').value;
   const err = $('login_error'); err.textContent = '';
   if (!uname || !password){ err.textContent = 'Enter your username and password.'; return; }
@@ -1311,7 +1311,13 @@ async function handleLogin(){
   if (uname.includes('@')){
     const r1 = await sb.auth.signInWithPassword({ email: aliasEmail(uname), password });
     if (r1.error){ const r2 = await sb.auth.signInWithPassword({ email: uname.toLowerCase(), password }); error = r2.error; }
-  } else error = (await sb.auth.signInWithPassword({ email: usernameToEmail(uname), password })).error;
+  } else {
+    error = (await sb.auth.signInWithPassword({ email: usernameToEmail(uname), password })).error;
+    if (error){ // account was made with an email: look up its Finance login by username
+      const { data: le } = await sb.rpc('fin_login_email', { p_username: uname });
+      if (le){ const r3 = await sb.auth.signInWithPassword({ email: le, password }); error = r3.error; }
+    }
+  }
   setBusy(btn, false);
   if (error){ err.textContent = /invalid login/i.test(error.message) ? 'Invalid username or password.' : error.message; return; }
   await afterLogin();

@@ -1251,9 +1251,11 @@ let data = null;        // { employees:[], expenses:[], funds:[] }  (same shape 
 let pendingCount = 0;
 let animNext = true;    // play entrance animation on next render
 
-const canWrite = () => !!me && (me.role === 'ADMIN' || me.role === 'FINANCE');
-const isAdmin = () => !!me && me.role === 'ADMIN';
-const ROLE_LABEL = { ADMIN:'Admin', FINANCE:'Finance', EMPLOYEE:'Employee', PENDING:'Pending approval' };
+const canWrite = () => !!me && ['SUPER_ADMIN','ADMIN','FINANCE'].includes(me.role);
+const isAdmin = () => !!me && (me.role === 'ADMIN' || me.role === 'SUPER_ADMIN');
+const isSuper = () => !!me && me.role === 'SUPER_ADMIN';
+const isTopRole = r => r === 'ADMIN' || r === 'SUPER_ADMIN';
+const ROLE_LABEL = { SUPER_ADMIN:'Super Admin', ADMIN:'Admin', FINANCE:'Finance', EMPLOYEE:'Employee', PENDING:'Pending approval' };
 // Finance-only login for an email that already belongs to another NidusLab app on the shared Supabase project.
 function aliasEmail(real){ return 'em+' + String(real).trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '') + '@' + EMAIL_DOMAIN; }
 function usernameToEmail(u){ u = String(u || '').trim().toLowerCase(); return u.includes('@') ? u : `${u}@${EMAIL_DOMAIN}`; }
@@ -1564,7 +1566,7 @@ async function refreshPendingBadge(skipRender){
 function renderUsersShell(){
   return `
     <div class="page-head">
-      <div><h1>Users &amp; Access</h1><p class="subtitle" style="margin-bottom:0;">Approve new sign-ups and set roles. <b>Admin</b> &amp; <b>Finance</b> can add / edit / delete. <b>Employee</b> sees only own expenses and sends requests for approval. <b>Pending</b> has no access.</p></div>
+      <div><h1>Users &amp; Access</h1><p class="subtitle" style="margin-bottom:0;">Approve new sign-ups and set roles. <b>Super Admin</b> = Admin + can change Admins. <b>Admin</b> &amp; <b>Finance</b> can add / edit / delete. <b>Employee</b> sees only own expenses and sends requests. <b>Pending</b> has no access.</p></div>
     </div>
     <div class="card" id="inviteCard" style="margin-top:18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;"><div style="flex:1;min-width:220px;"><div style="font-weight:700;">Team invite code</div><div class="muted" style="font-size:13px;">Share with your team. New sign-ups appear below as <b>Pending</b>. Pick a role to let them in.</div></div><code id="inviteCode" style="font-size:18px;font-weight:800;letter-spacing:1px;padding:8px 14px;border-radius:10px;background:#eef2fb;">…</code><button class="btn secondary" onclick="copyInvite()">Copy</button><button class="btn secondary" onclick="newInvite()">New code</button></div>
     <div class="card" style="padding:0;overflow-x:auto;margin-top:18px;" id="usersCard"><div class="empty">Loading users…</div></div>`;
@@ -1599,8 +1601,8 @@ async function loadUsersTab(){
     <tbody>${rows.map(u => `<tr>
       <td><b>${esc(u.full_name || '—')}</b>${u.id === me.id ? ' <span class="tag">You</span>' : ''} <button class="btn sm secondary" style="padding:3px 9px;margin-left:6px;" title="Edit name" onclick="renameMember('${u.id}', ${jsArg(u.full_name || '')})">✎ Edit</button></td>
       <td class="muted">${esc(u.username)}</td>
-      <td><select class="inp role-sel ${u.role === 'PENDING' ? 'is-pending' : ''}" ${u.id === me.id ? 'disabled' : ''} onchange="changeUserRole('${u.id}', this.value)">
-        ${['PENDING','EMPLOYEE','FINANCE','ADMIN'].map(r => `<option value="${r}" ${r === u.role ? 'selected' : ''}>${ROLE_LABEL[r]}</option>`).join('')}
+      <td><select class="inp role-sel ${u.role === 'PENDING' ? 'is-pending' : ''}" ${u.id === me.id || (isTopRole(u.role) && !isSuper()) ? 'disabled title="Only the Super Admin can change an Admin"' : ''} onchange="changeUserRole('${u.id}', this.value)">
+        ${(isSuper() ? ['PENDING','EMPLOYEE','FINANCE','ADMIN','SUPER_ADMIN'] : ['PENDING','EMPLOYEE','FINANCE','ADMIN'].concat(u.role === 'SUPER_ADMIN' ? ['SUPER_ADMIN'] : [])).map(r => `<option value="${r}" ${r === u.role ? 'selected' : ''}>${ROLE_LABEL[r]}</option>`).join('')}
       </select>${u.role === 'PENDING' ? `<button class="btn sm success" style="margin-left:8px;" onclick="changeUserRole('${u.id}', 'EMPLOYEE')">✓ Approve</button>` : ''}</td>
       <td class="muted">${formatDate(u.created_at)}</td></tr>`).join('')}
     </tbody></table>`;

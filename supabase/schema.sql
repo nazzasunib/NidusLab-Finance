@@ -342,3 +342,61 @@ language sql stable security definer set search_path = '' as $$
   select case when not exists (select 1 from public.fin_profiles) then 'ADMIN' else 'PENDING' end
 $$;
 revoke all on function public.fin_pick_role(text) from public, anon, authenticated;
+
+-- Rename a member: admin can rename anyone, others only themselves. Old expenses follow the new name.
+create or replace function public.fin_rename_member(p_id uuid, p_name text) returns void
+language plpgsql security definer set search_path = '' as $$
+declare old_name text; n text := left(btrim(coalesce(p_name, '')), 60);
+begin
+  if auth.uid() is null then raise exception 'not authenticated'; end if;
+  if not (public.fin_is_admin() or p_id = auth.uid()) then raise exception 'not allowed'; end if;
+  if n = '' then raise exception 'name is empty'; end if;
+  select coalesce(nullif(full_name, ''), username) into old_name from public.fin_profiles where id = p_id;
+  if old_name is null then raise exception 'user not found'; end if;
+  update public.fin_profiles set full_name = n where id = p_id;
+  update public.fin_expenses set employee = n where paid_by = 'EMPLOYEE' and employee = old_name;
+end $$;
+revoke all on function public.fin_rename_member(uuid, text) from public, anon;
+grant execute on function public.fin_rename_member(uuid, text) to authenticated;
+-- Super Admin: same as Admin, and the only role that can change Admins / Super Admins.
+do $$ declare c text; begin
+  for c in select conname from pg_constraint where conrelid = 'public.fin_profiles'::regclass and contype = 'c' and pg_get_constraintdef(oid) ilike '%role%' loop
+    execute format('alter table public.fin_profiles drop constraint %I', c);
+  end loop;
+end $$;
+alter table public.fin_profiles add constraint fin_profiles_role_check check (role in ('PENDING','EMPLOYEE','FINANCE','ADMIN','SUPER_ADMIN'));
+
+create or replace function public.fin_can_read() returns boolean
+language sql stable security definer set search_path = '' as $$
+  select coalesce(public.fin_role() in ('EMPLOYEE','FINANCE','ADMIN','SUPER_ADMIN'), false) $$;
+create or replace function public.fin_can_write() returns boolean
+language sql stable security definer set search_path = '' as $$
+  select coalesce(public.fin_role() in ('FINANCE','ADMIN','SUPER_ADMIN'), false) $$;
+create or replace function public.fin_is_admin() returns boolean
+language sql stable security definer set search_path = '' as $$
+  select coalesce(public.fin_role() in ('ADMIN','SUPER_ADMIN'), false) $$;
+create or replace function public.fin_is_super() returns boolean
+language sql stable security definer set search_path = '' as $$
+  select coalesce(public.fin_role() = 'SUPER_ADMIN', false) $$;
+revoke all on function public.fin_is_super() from public, anon;
+grant execute on function public.fin_is_super() to authenticated;
+
+-- Admin can manage everyone except Admins / Super Admins and cannot hand out Super Admin.
+drop policy if exists fin_profiles_update on public.fin_profiles;
+create policy fin_profiles_update on public.fin_profiles for update to authenticated
+  using (public.fin_is_super() or (public.fin_is_admin() and role not in ('ADMIN','SUPER_ADMIN')))
+  with check (public.fin_is_super() or (public.fin_is_admin() and role <> 'SUPER_ADMIN'));
+drop policy if exists fin_profiles_delete on public.fin_profiles;
+create policy fin_profiles_delete on public.fin_profiles for delete to authenticated
+  using (id <> auth.uid() and (public.fin_is_super() or (public.fin_is_admin() and role not in ('ADMIN','SUPER_ADMIN'))));
+
+-- First ever user becomes Super Admin; everyone else waits as Pending.
+create or replace function public.fin_pick_role(p_code text) returns text
+language sql stable security definer set search_path = '' as $$
+  select case when not exists (select 1 from public.fin_profiles) then 'SUPER_ADMIN' else 'PENDING' end $$;
+revoke all on function public.fin_pick_role(text) from public, anon, authenticated;
+
+-- Owner account becomes Super Admin.
+update public.fin_profiles set role = 'SUPER_ADMIN' where username = 'mdnazzas';
+notify pgrst, 'reload schema';
+select username, full_name, role from public.fin_profiles order by created_at;

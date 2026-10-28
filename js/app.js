@@ -1573,7 +1573,11 @@ async function loadInvite(){
   const { data } = await sb.from('fin_settings').select('value').eq('key','invite_code').maybeSingle();
   const el = $('inviteCode'); if (el) el.textContent = data ? data.value : '—';
 }
-function copyInvite(){ const t = $('inviteCode').textContent; try { navigator.clipboard.writeText(t); toast('Code copied.'); } catch (e){ toast(t); } }
+function copyInvite(){
+  const t = $('inviteCode').textContent;
+  const fallback = () => { const i = document.createElement('textarea'); i.value = t; document.body.appendChild(i); i.select(); try { document.execCommand('copy'); toast('Code copied.'); } catch (e){ toast(t); } i.remove(); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(() => toast('Code copied.'), fallback); else fallback();
+}
 async function newInvite(){
   if (!confirm('Generate a new code? The old code will stop working.')) return;
   const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let c = '';

@@ -61,6 +61,7 @@
         <div id="login_error" class="auth-err"></div>
         <button class="btn" id="loginBtn" onclick="handleLogin()">Sign In</button>
         <p class="auth-switch">No account yet? <a href="#" onclick="showAuthForm('signup');return false;">Sign Up</a></p>
+        <p class="auth-switch" style="margin-top:6px;">Have a team code? <a href="#" onclick="showAuthForm('signup');setTimeout(function(){document.getElementById('signup_invite').focus()},60);return false;">Join with code</a></p>
       </div>
       <div id="signupFormBox" class="hidden">
         <h2>Create account</h2>
@@ -186,6 +187,11 @@
       <input type="text" id="exp_description" placeholder='e.g. "Bought 20 T-shirts for seminar"'>
     </div>
     <div class="field">
+      <label>Cost Fund (which product is this for?)</label>
+      <div class="chips" id="exp_fund_chips"></div>
+      <div class="field hidden" id="exp_fund_other_field" style="margin:8px 0 0;"><input type="text" id="exp_fund_other" placeholder="Type what this is for"></div>
+    </div>
+    <div class="field" id="exp_paidby_field">
       <label>Paid By (Source of Payment)</label>
       <div class="radio-group">
         <label><input type="radio" name="exp_paidby" value="COMPANY" checked onchange="togglePaidBy()"> Company Fund (Cash in Hand)</label>
@@ -193,12 +199,9 @@
       </div>
     </div>
     <div class="field hidden" id="exp_employee_field">
-      <label>Employee</label>
-      <div class="row" style="gap:6px;flex-wrap:nowrap;">
-        <select id="exp_employee" style="flex:1;" onchange="updateExpensePreview()"></select>
-        <button type="button" class="btn secondary sm" onclick="addEmployeePrompt()" title="Add new employee">+ Add</button>
-        <button type="button" class="btn secondary sm" onclick="removeEmployeePrompt()" title="Remove selected employee">Remove</button>
-      </div>
+      <label>Employee (tap a team member)</label>
+      <div class="chips" id="exp_employee_chips"></div>
+      <select id="exp_employee" style="display:none;" onchange="updateExpensePreview()"></select>
     </div>
     <div class="field">
       <label>+ Attach Receipt / Photo / File (optional)</label>

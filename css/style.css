@@ -220,7 +220,7 @@ tr:hover td{background:#f7f9fe;}
 .total-row td{font-weight:800;background:var(--blue-50);color:var(--navy-900);}
 .num{text-align:right;white-space:nowrap;} td.click{cursor:pointer;}
 .empty{text-align:center;color:var(--text-muted);padding:38px 0;font-size:13px;}
-.role-sel{min-width:170px;} .role-sel.pending{border-color:var(--violet);background:#f4efff;color:#5a36b8;font-weight:600;}
+.role-sel{min-width:170px;} .role-sel.is-pending{border-color:var(--violet);background:#f4efff;color:#5a36b8;font-weight:600;}
 
 /* ---------------- Modals ---------------- */
 .modal-overlay{position:fixed;inset:0;background:rgba(5,14,38,.55);backdrop-filter:blur(6px);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;z-index:100;}

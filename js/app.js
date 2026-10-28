@@ -1599,9 +1599,9 @@ async function loadUsersTab(){
     <tbody>${rows.map(u => `<tr>
       <td><b>${esc(u.full_name || '—')}</b>${u.id === me.id ? ' <span class="tag">You</span>' : ''} <button class="btn sm secondary" style="padding:3px 9px;margin-left:6px;" title="Edit name" onclick="renameMember('${u.id}', ${jsArg(u.full_name || '')})">✎ Edit</button></td>
       <td class="muted">${esc(u.username)}</td>
-      <td><select class="inp role-sel ${u.role === 'PENDING' ? 'pending' : ''}" ${u.id === me.id ? 'disabled' : ''} onchange="changeUserRole('${u.id}', this.value)">
+      <td><select class="inp role-sel ${u.role === 'PENDING' ? 'is-pending' : ''}" ${u.id === me.id ? 'disabled' : ''} onchange="changeUserRole('${u.id}', this.value)">
         ${['PENDING','EMPLOYEE','FINANCE','ADMIN'].map(r => `<option value="${r}" ${r === u.role ? 'selected' : ''}>${ROLE_LABEL[r]}</option>`).join('')}
-      </select></td>
+      </select>${u.role === 'PENDING' ? `<button class="btn sm success" style="margin-left:8px;" onclick="changeUserRole('${u.id}', 'EMPLOYEE')">✓ Approve</button>` : ''}</td>
       <td class="muted">${formatDate(u.created_at)}</td></tr>`).join('')}
     </tbody></table>`;
 }

@@ -1303,8 +1303,11 @@ async function handleLogin(){
   const err = $('login_error'); err.textContent = '';
   if (!uname || !password){ err.textContent = 'Enter your username and password.'; return; }
   const btn = $('loginBtn'); setBusy(btn, true, 'Signing in…');
-  let { error } = await sb.auth.signInWithPassword({ email: usernameToEmail(uname), password });
-  if (error && uname.includes('@')){ const r2 = await sb.auth.signInWithPassword({ email: aliasEmail(uname), password }); if (!r2.error) error = null; }
+  let error = null;
+  if (uname.includes('@')){
+    const r1 = await sb.auth.signInWithPassword({ email: aliasEmail(uname), password });
+    if (r1.error){ const r2 = await sb.auth.signInWithPassword({ email: uname.toLowerCase(), password }); error = r2.error; }
+  } else error = (await sb.auth.signInWithPassword({ email: usernameToEmail(uname), password })).error;
   setBusy(btn, false);
   if (error){ err.textContent = /invalid login/i.test(error.message) ? 'Invalid username or password.' : error.message; return; }
   await afterLogin();
@@ -1320,7 +1323,7 @@ async function handleSignup(){
   let email, username;
   if (raw.includes('@')){
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(raw)){ err.textContent = 'Enter a valid email address.'; return; }
-    email = raw; username = raw.split('@')[0].replace(/[^a-z0-9._-]/g, '').slice(0, 30);
+    email = aliasEmail(raw); username = raw.split('@')[0].replace(/[^a-z0-9._-]/g, '').slice(0, 30);
     if (username.length < 3) username = (username + 'user').slice(0, 30);
   } else {
     if (!/^[a-z0-9._-]{3,30}$/.test(raw)){ err.textContent = 'Username: 3–30 characters, letters, numbers, . _ - only.'; return; }
@@ -1331,34 +1334,13 @@ async function handleSignup(){
   const btn = $('signupBtn'); setBusy(btn, true, 'Creating account…');
   const { data: d, error } = await sb.auth.signUp({
     email, password,
-    options: { data: { app: 'niduslab_finance', name, username, invite } },
+    options: { data: { app: 'niduslab_finance', name, username, invite, real_email: raw.includes('@') ? raw : null } },
   });
   setBusy(btn, false);
   if (error){
     const taken = /already registered|already exists|duplicate|database error/i.test(error.message);
-    if (!taken){ err.textContent = error.message; return; }
-    if (!raw.includes('@')){ err.textContent = 'That username is already taken. Try another.'; return; }
-    setBusy(btn, true, 'Setting up…');
-    // 1) Same password as the other NidusLab app: link that login to Finance.
-    const r1 = await sb.auth.signInWithPassword({ email, password });
-    if (!r1.error){
-      const { error: e3 } = await sb.rpc('fin_claim_profile', { p_username: username, p_name: name, p_invite: invite });
-      setBusy(btn, false);
-      if (e3){ await sb.auth.signOut(); err.textContent = e3.message; return; }
-      await afterLogin(); return;
-    }
-    // 2) Otherwise create a separate Finance-only login for this email (own password).
-    const alias = aliasEmail(email);
-    const r2 = await sb.auth.signUp({ email: alias, password, options: { data: { app: 'niduslab_finance', name, username, invite, real_email: email } } });
-    if (r2.error){
-      const r3 = await sb.auth.signInWithPassword({ email: alias, password });
-      setBusy(btn, false);
-      if (!r3.error){ await afterLogin(); return; }
-      err.textContent = 'This email is already registered in Finance. Use Sign In.';
-      return;
-    }
-    setBusy(btn, false);
-    await afterLogin(); return;
+    err.textContent = !taken ? error.message : raw.includes('@') ? 'This email already has a Finance account. Use Sign In.' : 'That username is already taken. Try another.';
+    return;
   }
   if (!d.session){ err.textContent = 'Account created, but email confirmation is on. Ask the admin to disable it.'; return; }
   await afterLogin();
@@ -1371,15 +1353,10 @@ async function afterLogin(){
     const { data: profRow, error } = await sb.from('fin_profiles').select('*').eq('id', user.id).maybeSingle();
     if (error) throw error;
     let prof2 = profRow;
-    if (!prof2){ // login exists (e.g. from another NidusLab app) but has no Finance profile yet: join as pending
-      const md = user.user_metadata || {};
-      const { error: ec } = await sb.rpc('fin_claim_profile', { p_username: md.username || String(user.email).split('@')[0], p_name: md.name || md.full_name || '', p_invite: md.invite || null });
-      if (!ec) prof2 = (await sb.from('fin_profiles').select('*').eq('id', user.id).maybeSingle()).data;
-      if (!prof2){
-        await sb.auth.signOut(); showScreen('auth');
-        $('login_error').textContent = 'Could not set up your Finance account' + (ec ? ': ' + ec.message : '.');
-        return;
-      }
+    if (!prof2){
+      await sb.auth.signOut(); showScreen('auth');
+      $('login_error').textContent = 'No Finance account for this login. Please Sign Up (your other NidusLab apps are not affected).';
+      return;
     }
     const prof_ = prof2;
     const prof = prof_;

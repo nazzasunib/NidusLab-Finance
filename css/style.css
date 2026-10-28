@@ -303,3 +303,5 @@ tr:hover td{background:#f7f9fe;}
 .fund-sum{margin-bottom:18px;}
 .fund-pill{background:#eef2fb;border-radius:12px;padding:8px 14px;font-size:13px;color:var(--navy-700);}
 .fund-pill b{margin-right:6px;}
+
+.badge-rejected{background:#fee4e2;color:#b42318;}

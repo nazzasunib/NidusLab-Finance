@@ -754,9 +754,9 @@ function saveExpense(){
     if (editingId){
       const e = data.mine.find(x => x.id === editingId); if (!e) return;
       if ((e.payments || []).length){ alert('Part of this is already paid back to you. Ask an admin to change it.'); return; }
-      const wasApproved = e.status === 'APPROVED';
-      Object.assign(e, fields, { paidBy:'EMPLOYEE', employee:me.name, status:'PENDING', approvedByName:'' });
-      saveData(); closeModal('expenseModal'); toast(wasApproved ? 'Changes sent. It needs approval again.' : 'Request updated.'); render(); return;
+      const wasApproved = e.status === 'APPROVED'; const wasRejected = e.status === 'REJECTED';
+      Object.assign(e, fields, { paidBy:'EMPLOYEE', employee:me.name, status:'PENDING', approvedByName:'', rejectNote:'', rejectedByName:'' });
+      saveData(); closeModal('expenseModal'); toast(wasApproved || wasRejected ? 'Changes sent. It needs approval again.' : 'Request updated.'); render(); return;
     }
     data.mine.push({ id:uid(), createdAt:Date.now(), payments:[], status:'PENDING', ...fields, paidBy:'EMPLOYEE', employee:me.name });
     saveData(); closeModal('expenseModal'); toast('Request sent to admin.'); render(); return;
@@ -1445,12 +1445,13 @@ function buildData(emp, exp, pay, fund, cf){
       id:r.id, date:r.date, category:r.category, accountCode: CATEGORY_ACCOUNT[r.category] || r.account_code || '5150', accountLabel:null,
       description:r.description || '', amount:num(r.amount), paidBy:r.paid_by, paymentMethod:r.payment_method || 'CASH',
       employee:r.paid_by === 'EMPLOYEE' ? (r.employee || '') : null, notes:r.notes || '',
-      costFund:r.cost_fund || '', status:r.status || 'APPROVED', approvedByName:r.approved_by_name || '', approvedAt:r.approved_at || null,
+      costFund:r.cost_fund || '', status:r.status || 'APPROVED', approvedByName:r.approved_by_name || '', approvedAt:r.approved_at || null, rejectNote:r.reject_note || '', rejectedByName:r.rejected_by_name || '',
       photoPath:r.photo_path || null, photoName:r.photo_name || null, photoMime:r.photo_mime || null, photo:null,
       createdAt:Date.parse(r.created_at) || 0, payments:[],
     };
     byId[e.id] = e;
     if (!canWrite()) d.mine.push(e);
+    else if (e.status === 'REJECTED') return; // rejected requests stay out of the books and the request list
     else if (e.status === 'PENDING') d.requests.push(e);
     else d.expenses.push(e);
   });
@@ -1813,10 +1814,23 @@ function approveRequest(id){
   const e = data.requests.splice(i, 1)[0]; e.status = 'APPROVED'; data.expenses.push(e);
   saveData(); toast('Approved. Added to books.'); render();
 }
+let rejectingId = null;
 function rejectRequest(id){
   const e = data.requests.find(x => x.id === id); if (!e) return;
-  if (!confirm(`Reject request "${e.description || e.category}" (${formatBDT(e.amount)}) from ${e.employee}? It will be deleted.`)) return;
-  data.requests = data.requests.filter(x => x.id !== id); saveData(); toast('Request rejected.'); render();
+  rejectingId = id;
+  $('reject_info').innerHTML = `<b>${esc(e.employee || '—')}</b> · ${esc(e.category)} · <b>${formatBDT(e.amount)}</b><br><span class="muted">${esc(e.description || '—')}</span>`;
+  $('reject_note').value = ''; $('reject_error').textContent = '';
+  openModal('rejectModal'); setTimeout(() => $('reject_note').focus(), 60);
+}
+async function confirmReject(){
+  const note = $('reject_note').value.trim();
+  if (note.length < 3){ $('reject_error').textContent = 'Please write why you are rejecting (required).'; $('reject_note').focus(); return; }
+  const btn = $('rejectBtn'); setBusy(btn, true, 'Rejecting…');
+  const { error } = await sb.rpc('fin_reject_request', { p_id: rejectingId, p_note: note });
+  setBusy(btn, false);
+  if (error){ $('reject_error').textContent = 'Could not reject: ' + error.message; return; }
+  closeModal('rejectModal'); toast('Request rejected. The employee will see your note.');
+  await reloadData(true); animNext = false; render();
 }
 function photoLink(e){ return e.photo ? `<a href="${e.photo}" target="_blank" rel="noopener">📎 View</a>` : '<span class="muted">—</span>'; }
 function renderRequests(){
@@ -1842,7 +1856,8 @@ function renderMine(){
   const due = Math.max(0, round2(total - got)), pendAmt = sumBy(pend, e => e.amount);
   const body = rows.length ? rows.map(e => {
     const paid = sumBy(e.payments || [], p => p.amount), left = round2(e.amount - paid);
-    const st = e.status === 'PENDING' ? '<span class="badge-status badge-pending">Pending approval</span>'
+    const st = e.status === 'REJECTED' ? `<span class="badge-status badge-rejected">Rejected</span><div style="font-size:11.5px;margin-top:4px;color:#b42318;max-width:260px;"><b>Reason:</b> ${esc(e.rejectNote || '—')}</div>${e.rejectedByName ? `<div class="muted" style="font-size:11px;">by ${esc(e.rejectedByName)}</div>` : ''}<div class="muted" style="font-size:11px;">Edit and send again</div>`
+      : e.status === 'PENDING' ? '<span class="badge-status badge-pending">Pending approval</span>'
       : (left <= 0 ? '<span class="badge-status badge-reimbursed">Received</span>'
       : paid > 0 ? `<span class="badge-status badge-partial">Partly received</span><div class="amber" style="font-size:11.5px;margin-top:3px;">Due ${formatBDT(left)}</div>`
       : `<span class="badge-status badge-partial">Approved</span><div class="amber" style="font-size:11.5px;margin-top:3px;">You get ${formatBDT(left)}</div>`)

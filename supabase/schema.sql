@@ -487,3 +487,45 @@ begin
   end if;
   return new;
 end $$;
+-- Reject with a required reason. The employee sees the reason and can edit + resend.
+alter table public.fin_expenses drop constraint if exists fin_expenses_status_chk;
+alter table public.fin_expenses add constraint fin_expenses_status_chk check (status in ('PENDING','APPROVED','REJECTED'));
+alter table public.fin_expenses add column if not exists reject_note text;
+alter table public.fin_expenses add column if not exists rejected_by_name text;
+alter table public.fin_expenses add column if not exists rejected_at timestamptz;
+
+create or replace function public.fin_reject_request(p_id uuid, p_note text) returns void
+language plpgsql security definer set search_path = '' as $$
+declare nm text; n text := btrim(coalesce(p_note, ''));
+begin
+  if not public.fin_can_write() then raise exception 'not allowed'; end if;
+  if length(n) < 3 then raise exception 'a reason is required'; end if;
+  select coalesce(nullif(btrim(full_name), ''), username) into nm from public.fin_profiles where id = auth.uid();
+  update public.fin_expenses
+     set status = 'REJECTED', reject_note = left(n, 500), rejected_by_name = coalesce(nm, 'Unknown'), rejected_at = now()
+   where id = p_id and status = 'PENDING';
+  if not found then raise exception 'request not found or not pending'; end if;
+end $$;
+revoke all on function public.fin_reject_request(uuid, text) from public, anon;
+grant execute on function public.fin_reject_request(uuid, text) to authenticated;
+
+-- Resubmitting (back to PENDING) clears old approval and rejection stamps.
+create or replace function public.fin_stamp_approval() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare nm text;
+begin
+  if tg_op = 'UPDATE' and old.status = 'PENDING' and new.status = 'APPROVED' then
+    select coalesce(nullif(btrim(full_name), ''), username) into nm from public.fin_profiles where id = auth.uid();
+    new.approved_by := auth.uid(); new.approved_by_name := coalesce(nm, 'Unknown'); new.approved_at := now();
+  elsif tg_op = 'UPDATE' and new.status = 'PENDING' then
+    new.approved_by := null; new.approved_by_name := null; new.approved_at := null;
+    new.reject_note := null; new.rejected_by_name := null; new.rejected_at := null;
+  elsif tg_op = 'UPDATE' then
+    new.approved_by := old.approved_by; new.approved_by_name := old.approved_by_name; new.approved_at := old.approved_at;
+  else
+    new.approved_by := null; new.approved_by_name := null; new.approved_at := null;
+    new.reject_note := null; new.rejected_by_name := null; new.rejected_at := null;
+  end if;
+  return new;
+end $$;
+notify pgrst, 'reload schema';

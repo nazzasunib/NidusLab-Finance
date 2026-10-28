@@ -283,6 +283,24 @@
   </div>
 </div>
 
+<!-- Reject request modal -->
+<div class="modal-overlay" id="rejectModal">
+  <div class="modal" style="max-width:480px;">
+    <span class="close-x" onclick="closeModal('rejectModal')">&times;</span>
+    <h2>Reject Request</h2>
+    <div id="reject_info" class="calc-box" style="margin-bottom:12px;"></div>
+    <div class="field">
+      <label>Reason for rejecting <span style="color:var(--rose,#e5484d);">*</span></label>
+      <textarea id="reject_note" rows="3" placeholder="e.g. Receipt missing, amount does not match, wrong cost fund…"></textarea>
+    </div>
+    <div id="reject_error" class="auth-err"></div>
+    <div class="modal-actions">
+      <button class="btn danger" id="rejectBtn" onclick="confirmReject()">Reject</button>
+      <button class="btn secondary" onclick="closeModal('rejectModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Expense Detail Modal -->
 <div class="modal-overlay" id="detailModal">
   <div class="modal" style="max-width:680px;">

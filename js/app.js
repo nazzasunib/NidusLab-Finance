@@ -1254,6 +1254,8 @@ let animNext = true;    // play entrance animation on next render
 const canWrite = () => !!me && (me.role === 'ADMIN' || me.role === 'FINANCE');
 const isAdmin = () => !!me && me.role === 'ADMIN';
 const ROLE_LABEL = { ADMIN:'Admin', FINANCE:'Finance', EMPLOYEE:'Employee', PENDING:'Pending approval' };
+// Finance-only login for an email that already belongs to another NidusLab app on the shared Supabase project.
+function aliasEmail(real){ return 'em+' + String(real).trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '') + '@' + EMAIL_DOMAIN; }
 function usernameToEmail(u){ u = String(u || '').trim().toLowerCase(); return u.includes('@') ? u : `${u}@${EMAIL_DOMAIN}`; }
 const $ = id => document.getElementById(id);
 
@@ -1301,7 +1303,8 @@ async function handleLogin(){
   const err = $('login_error'); err.textContent = '';
   if (!uname || !password){ err.textContent = 'Enter your username and password.'; return; }
   const btn = $('loginBtn'); setBusy(btn, true, 'Signing in…');
-  const { error } = await sb.auth.signInWithPassword({ email: usernameToEmail(uname), password });
+  let { error } = await sb.auth.signInWithPassword({ email: usernameToEmail(uname), password });
+  if (error && uname.includes('@')){ const r2 = await sb.auth.signInWithPassword({ email: aliasEmail(uname), password }); if (!r2.error) error = null; }
   setBusy(btn, false);
   if (error){ err.textContent = /invalid login/i.test(error.message) ? 'Invalid username or password.' : error.message; return; }
   await afterLogin();
@@ -1332,28 +1335,30 @@ async function handleSignup(){
   });
   setBusy(btn, false);
   if (error){
-    if (/already registered|already exists|duplicate|database error/i.test(error.message)){
-      // Email may already exist from another NidusLab app on the shared login: sign in with the same password and join Finance.
-      setBusy(btn, true, 'Linking account…');
-      const { error: e2 } = await sb.auth.signInWithPassword({ email, password });
-      if (!e2){
-        const { error: e3 } = await sb.rpc('fin_claim_profile', { p_username: username, p_name: name, p_invite: invite });
-        setBusy(btn, false);
-        if (e3){
-          await sb.auth.signOut();
-          err.textContent = /duplicate|unique/i.test(e3.message) ? 'That username is already taken. Try another.' : e3.message;
-          return;
-        }
-        await afterLogin(); return;
-      }
+    const taken = /already registered|already exists|duplicate|database error/i.test(error.message);
+    if (!taken){ err.textContent = error.message; return; }
+    if (!raw.includes('@')){ err.textContent = 'That username is already taken. Try another.'; return; }
+    setBusy(btn, true, 'Setting up…');
+    // 1) Same password as the other NidusLab app: link that login to Finance.
+    const r1 = await sb.auth.signInWithPassword({ email, password });
+    if (!r1.error){
+      const { error: e3 } = await sb.rpc('fin_claim_profile', { p_username: username, p_name: name, p_invite: invite });
       setBusy(btn, false);
-      err.textContent = raw.includes('@')
-        ? 'This email already has a NidusLab account. Enter that account\'s password here, or use a different email/username.'
-        : 'That username is already taken.';
+      if (e3){ await sb.auth.signOut(); err.textContent = e3.message; return; }
+      await afterLogin(); return;
+    }
+    // 2) Otherwise create a separate Finance-only login for this email (own password).
+    const alias = aliasEmail(email);
+    const r2 = await sb.auth.signUp({ email: alias, password, options: { data: { app: 'niduslab_finance', name, username, invite, real_email: email } } });
+    if (r2.error){
+      const r3 = await sb.auth.signInWithPassword({ email: alias, password });
+      setBusy(btn, false);
+      if (!r3.error){ await afterLogin(); return; }
+      err.textContent = 'This email is already registered in Finance. Use Sign In.';
       return;
     }
-    err.textContent = error.message;
-    return;
+    setBusy(btn, false);
+    await afterLogin(); return;
   }
   if (!d.session){ err.textContent = 'Account created, but email confirmation is on. Ask the admin to disable it.'; return; }
   await afterLogin();
@@ -1363,14 +1368,22 @@ async function afterLogin(){
   try {
     const { data: { user } } = await sb.auth.getUser();
     if (!user){ showScreen('auth'); return; }
-    const { data: prof, error } = await sb.from('fin_profiles').select('*').eq('id', user.id).maybeSingle();
+    const { data: profRow, error } = await sb.from('fin_profiles').select('*').eq('id', user.id).maybeSingle();
     if (error) throw error;
-    if (!prof){
-      await sb.auth.signOut(); showScreen('auth');
-      $('login_error').textContent = 'This account is not registered for NidusLab Finance. Please sign up.';
-      return;
+    let prof2 = profRow;
+    if (!prof2){ // login exists (e.g. from another NidusLab app) but has no Finance profile yet: join as pending
+      const md = user.user_metadata || {};
+      const { error: ec } = await sb.rpc('fin_claim_profile', { p_username: md.username || String(user.email).split('@')[0], p_name: md.name || md.full_name || '', p_invite: md.invite || null });
+      if (!ec) prof2 = (await sb.from('fin_profiles').select('*').eq('id', user.id).maybeSingle()).data;
+      if (!prof2){
+        await sb.auth.signOut(); showScreen('auth');
+        $('login_error').textContent = 'Could not set up your Finance account' + (ec ? ': ' + ec.message : '.');
+        return;
+      }
     }
-    me = { id: prof.id, username: prof.username, name: prof.full_name || prof.username, role: prof.role, email: user.email, avatarPath: prof.avatar_path || null, avatarUrl: null };
+    const prof_ = prof2;
+    const prof = prof_;
+    me = { id: prof.id, username: prof.username, name: prof.full_name || prof.username, role: prof.role, email: (user.user_metadata || {}).real_email || user.email, authEmail: user.email, avatarPath: prof.avatar_path || null, avatarUrl: null };
     if (prof.role === 'PENDING'){ $('pending_name').textContent = me.name; showScreen('pending'); return; }
     await enterApp();
   } catch (e){
@@ -1384,7 +1397,7 @@ async function handleChangePassword(){
   const err = $('cp_error'); err.style.color = ''; err.textContent = '';
   if (next.length < 6){ err.textContent = 'New password must be at least 6 characters.'; return; }
   if (next !== conf){ err.textContent = 'New passwords do not match.'; return; }
-  const { error: e1 } = await sb.auth.signInWithPassword({ email: me.email, password: cur });
+  const { error: e1 } = await sb.auth.signInWithPassword({ email: me.authEmail || me.email, password: cur });
   if (e1){ err.textContent = 'Current password is incorrect.'; return; }
   const { error: e2 } = await sb.auth.updateUser({ password: next });
   if (e2){ err.textContent = e2.message; return; }

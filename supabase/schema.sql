@@ -335,3 +335,10 @@ revoke all on function public.fin_claim_profile(text, text, text) from public, a
 grant execute on function public.fin_claim_profile(text, text, text) to authenticated;
 notify pgrst, 'reload schema';
 select public.fin_unique_username('mdnazzas') as test_should_be_mdnazzas2;
+
+-- Everyone (with or without team code) waits as PENDING until the admin approves and sets a role.
+create or replace function public.fin_pick_role(p_code text) returns text
+language sql stable security definer set search_path = '' as $$
+  select case when not exists (select 1 from public.fin_profiles) then 'ADMIN' else 'PENDING' end
+$$;
+revoke all on function public.fin_pick_role(text) from public, anon, authenticated;

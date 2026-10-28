@@ -1566,7 +1566,7 @@ function renderUsersShell(){
     <div class="page-head">
       <div><h1>Users &amp; Access</h1><p class="subtitle" style="margin-bottom:0;">Approve new sign-ups and set roles. <b>Admin</b> &amp; <b>Finance</b> can add / edit / delete. <b>Employee</b> sees only own expenses and sends requests for approval. <b>Pending</b> has no access.</p></div>
     </div>
-    <div class="card" id="inviteCard" style="margin-top:18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;"><div style="flex:1;min-width:220px;"><div style="font-weight:700;">Team invite code</div><div class="muted" style="font-size:13px;">Share with your team. Anyone who signs up with it joins instantly as <b>Employee</b> (own expenses + requests). Change role below if needed.</div></div><code id="inviteCode" style="font-size:18px;font-weight:800;letter-spacing:1px;padding:8px 14px;border-radius:10px;background:#eef2fb;">…</code><button class="btn secondary" onclick="copyInvite()">Copy</button><button class="btn secondary" onclick="newInvite()">New code</button></div>
+    <div class="card" id="inviteCard" style="margin-top:18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;"><div style="flex:1;min-width:220px;"><div style="font-weight:700;">Team invite code</div><div class="muted" style="font-size:13px;">Share with your team. New sign-ups appear below as <b>Pending</b>. Pick a role to let them in.</div></div><code id="inviteCode" style="font-size:18px;font-weight:800;letter-spacing:1px;padding:8px 14px;border-radius:10px;background:#eef2fb;">…</code><button class="btn secondary" onclick="copyInvite()">Copy</button><button class="btn secondary" onclick="newInvite()">New code</button></div>
     <div class="card" style="padding:0;overflow-x:auto;margin-top:18px;" id="usersCard"><div class="empty">Loading users…</div></div>`;
 }
 async function loadInvite(){
@@ -1593,6 +1593,7 @@ async function loadUsersTab(){
   const { data: rows, error } = await sb.from('fin_profiles').select('*').order('created_at', { ascending:false });
   if (error){ card.innerHTML = `<div class="empty">Could not load users: ${esc(error.message)}</div>`; return; }
   pendingCount = rows.filter(r => r.role === 'PENDING').length; renderNav();
+  rows.sort((x, y) => (y.role === 'PENDING') - (x.role === 'PENDING'));
   card.innerHTML = `<table>
     <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Joined</th></tr></thead>
     <tbody>${rows.map(u => `<tr>

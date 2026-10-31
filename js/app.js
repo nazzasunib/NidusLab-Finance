@@ -1960,7 +1960,7 @@ function showRequestDetail(id){
 function paidByName(e){ return e.paidBy === 'EMPLOYEE' ? employeeName(e) : ((e.createdByName || '').trim() || 'Company Fund'); }
 
 /* ----- Expenses page with filters (date via month picker, cost fund, person) ----- */
-let expFilter = { fund:'', person:'' };
+let expFilter = { fund:'', person:'', cat:'' };
 function setExpFilter(k, v){ expFilter[k] = v; animNext = false; render(); }
 function renderExpenses(){
   const pr = periodRange();
@@ -1969,12 +1969,14 @@ function renderExpenses(){
   const fundOf = e => e.costFund || 'Unassigned';
   const funds = [...new Set(all.map(fundOf))].sort((a, b) => a.localeCompare(b));
   const people = [...new Set(all.map(paidByName))].sort((a, b) => a.localeCompare(b));
+  const cats = [...new Set(all.map(e => e.category))].sort((a, b) => a.localeCompare(b));
+  if (expFilter.cat && !cats.includes(expFilter.cat)) expFilter.cat = '';
   if (expFilter.fund && !funds.includes(expFilter.fund)) expFilter.fund = '';
   if (expFilter.person && !people.includes(expFilter.person)) expFilter.person = '';
-  const list = all.filter(e => (!expFilter.fund || fundOf(e) === expFilter.fund) && (!expFilter.person || paidByName(e) === expFilter.person)).sort(byDateDesc);
+  const list = all.filter(e => (!expFilter.fund || fundOf(e) === expFilter.fund) && (!expFilter.person || paidByName(e) === expFilter.person) && (!expFilter.cat || e.category === expFilter.cat)).sort(byDateDesc);
   const total = sumBy(list, e => e.amount), comp = sumBy(list.filter(e => e.paidBy === 'COMPANY'), e => e.amount), emp = sumBy(list.filter(e => e.paidBy === 'EMPLOYEE'), e => e.amount);
-  const filtered = !!(expFilter.fund || expFilter.person);
-  const scope = pr.label + (expFilter.fund ? ' · ' + expFilter.fund : '') + (expFilter.person ? ' · ' + expFilter.person : '');
+  const filtered = !!(expFilter.fund || expFilter.person || expFilter.cat);
+  const scope = pr.label + (expFilter.fund ? ' · ' + expFilter.fund : '') + (expFilter.person ? ' · ' + expFilter.person : '') + (expFilter.cat ? ' · ' + expFilter.cat : '');
 
   let body = '';
   if (!list.length) body = `<tr><td colspan="7" class="empty">No expenses for ${esc(scope)}.</td></tr>`;
@@ -1987,7 +1989,7 @@ function renderExpenses(){
   } else body = list.map(expenseRowHtml).join('');
 
   const pills = (title, keyFn, key) => {
-    const t = {}; all.filter(e => key === 'fund' ? (!expFilter.person || paidByName(e) === expFilter.person) : (!expFilter.fund || fundOf(e) === expFilter.fund))
+    const t = {}; all.filter(e => (!expFilter.cat || e.category === expFilter.cat) && (key === 'fund' ? (!expFilter.person || paidByName(e) === expFilter.person) : (!expFilter.fund || fundOf(e) === expFilter.fund)))
       .forEach(e => { const k = keyFn(e); t[k] = (t[k] || 0) + num(e.amount); });
     const keys = Object.keys(t).sort((a, b) => t[b] - t[a]);
     return `<div style="flex:1;min-width:260px;"><div style="font-weight:700;margin-bottom:8px;">${title}</div><div class="chips">${keys.length ? keys.map(k => `<button type="button" class="chip-btn ${expFilter[key] === k ? 'on' : ''}" onclick="setExpFilter('${key}', ${jsArg(expFilter[key] === k ? '' : k)})">${esc(k)} · <b>${formatBDT(t[k])}</b></button>`).join('') : '<span class="muted">—</span>'}</div></div>`;
@@ -2002,7 +2004,8 @@ function renderExpenses(){
     <div class="card filter-bar">
       <div class="field" style="margin:0;"><label>Cost Fund (product)</label><select onchange="setExpFilter('fund', this.value)"><option value="">All products</option>${opt(funds, expFilter.fund)}</select></div>
       <div class="field" style="margin:0;"><label>Person</label><select onchange="setExpFilter('person', this.value)"><option value="">Everyone</option>${opt(people, expFilter.person)}</select></div>
-      ${filtered ? `<button class="btn secondary sm" style="align-self:flex-end;" onclick="expFilter={fund:'',person:''};animNext=false;render();">✕ Clear filters</button>` : ''}
+      <div class="field" style="margin:0;"><label>Category</label><select onchange="setExpFilter('cat', this.value)"><option value="">All categories</option>${opt(cats, expFilter.cat)}</select></div>
+      ${filtered ? `<button class="btn secondary sm" style="align-self:flex-end;" onclick="expFilter={fund:'',person:'',cat:''};animNext=false;render();">✕ Clear filters</button>` : ''}
     </div>
     <div class="kpi-grid">
       ${kpiCard({ label:'Total Expenses', value:total, cls:'negative', sub:`${list.length} expense(s)` })}
@@ -2024,7 +2027,7 @@ function renderExpenses(){
 }
 
 /* ----- Financial Summary: product / person filters + breakdown ----- */
-let sumFilter = { fund:'', person:'' };
+let sumFilter = { fund:'', person:'', cat:'' };
 function setSumFilter(k, v){ sumFilter[k] = v; animNext = false; render(); }
 const fundOfExp = e => e.costFund || 'Unassigned';
 function splitTotals(list, keyFn){
@@ -2036,10 +2039,12 @@ function filterReport(r){
   r.allPeriodExpenses = r.expenses;
   r.fundOptions = [...new Set(r.expenses.map(fundOfExp))].sort((a, b) => a.localeCompare(b));
   r.personOptions = [...new Set(r.expenses.map(paidByName))].sort((a, b) => a.localeCompare(b));
+  r.catOptions = [...new Set(r.expenses.map(e => e.category))].sort((a, b) => a.localeCompare(b));
+  if (sumFilter.cat && !r.catOptions.includes(sumFilter.cat)) sumFilter.cat = '';
   if (sumFilter.fund && !r.fundOptions.includes(sumFilter.fund)) sumFilter.fund = '';
   if (sumFilter.person && !r.personOptions.includes(sumFilter.person)) sumFilter.person = '';
-  if (sumFilter.fund || sumFilter.person){
-    const ex = r.expenses.filter(e => (!sumFilter.fund || fundOfExp(e) === sumFilter.fund) && (!sumFilter.person || paidByName(e) === sumFilter.person));
+  if (sumFilter.fund || sumFilter.person || sumFilter.cat){
+    const ex = r.expenses.filter(e => (!sumFilter.fund || fundOfExp(e) === sumFilter.fund) && (!sumFilter.person || paidByName(e) === sumFilter.person) && (!sumFilter.cat || e.category === sumFilter.cat));
     r.expenses = ex;
     r.totalExpenses = sumBy(ex, e => e.amount);
     r.companyPaid = sumBy(ex, e => e.paidBy === 'COMPANY' ? e.amount : 0);
@@ -2047,7 +2052,7 @@ function filterReport(r){
     const cat = {};
     ex.forEach(e => { const c = cat[e.category] || (cat[e.category] = { name:e.category, count:0, total:0, company:0, employee:0, items:[] }); c.count++; c.total += num(e.amount); if (e.paidBy === 'COMPANY') c.company += num(e.amount); else c.employee += num(e.amount); c.items.push(e); });
     r.byCategory = Object.values(cat).sort((a, b) => b.total - a.total);
-    r.filterNote = [sumFilter.fund && ('Cost Fund: ' + sumFilter.fund), sumFilter.person && ('Person: ' + sumFilter.person)].filter(Boolean).join(' · ');
+    r.filterNote = [sumFilter.fund && ('Cost Fund: ' + sumFilter.fund), sumFilter.person && ('Person: ' + sumFilter.person), sumFilter.cat && ('Category: ' + sumFilter.cat)].filter(Boolean).join(' · ');
   }
   r.byFund = splitTotals(r.expenses, fundOfExp);
   r.byPerson = splitTotals(r.expenses, paidByName);
@@ -2058,7 +2063,8 @@ function summaryFilterBar(r){
   return `<div class="filter-bar" style="margin:16px 0 0;">
       <div class="field" style="margin:0;"><label>Cost Fund (product)</label><select onchange="setSumFilter('fund', this.value)"><option value="">All products</option>${opt(r.fundOptions || [], sumFilter.fund)}</select></div>
       <div class="field" style="margin:0;"><label>Person</label><select onchange="setSumFilter('person', this.value)"><option value="">Everyone</option>${opt(r.personOptions || [], sumFilter.person)}</select></div>
-      ${sumFilter.fund || sumFilter.person ? `<button class="btn secondary sm" style="align-self:flex-end;" onclick="sumFilter={fund:'',person:''};animNext=false;render();">✕ Clear filters</button>` : ''}
+      <div class="field" style="margin:0;"><label>Category</label><select onchange="setSumFilter('cat', this.value)"><option value="">All categories</option>${opt(r.catOptions || [], sumFilter.cat)}</select></div>
+      ${sumFilter.fund || sumFilter.person || sumFilter.cat ? `<button class="btn secondary sm" style="align-self:flex-end;" onclick="sumFilter={fund:'',person:'',cat:''};animNext=false;render();">✕ Clear filters</button>` : ''}
     </div>`;
 }
 function reportSplitHtml(r, B){

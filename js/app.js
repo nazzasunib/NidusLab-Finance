@@ -1000,7 +1000,7 @@ function renderSummary(){
   const months = availableMonths();
   const ym = summaryState.ym || period.ym;
   const pr = summaryRange();
-  const r = computePeriod(pr.from, pr.to, pr.label);
+  const r = filterReport(computePeriod(pr.from, pr.to, pr.label));
   return `
     <h1>Financial Summary</h1>
     <p class="subtitle">Pick a month or a custom date range. Every card and table row below is clickable — the same links work in the downloaded PDF.</p>
@@ -1020,11 +1020,12 @@ function renderSummary(){
           <div class="field"><label>To Date</label><input type="date" id="summary_to" min="${DATA_START}" value="${summaryState.to}"></div>
         </div>
         <button class="btn" onclick="applySummaryRange()">Generate Summary</button>`}
+      ${summaryFilterBar(r)}
     </div>
     ${summaryState.mode==='range' && !(summaryState.from && summaryState.to) ? '' : `
     <div class="card" style="border-color:var(--purple);">
       <div class="row noprint" style="justify-content:space-between;margin-bottom:6px;">
-        <h3 style="margin:0;">Report — ${esc(pr.label)}</h3>
+        <h3 style="margin:0;">Report — ${esc(pr.label)}${r.filterNote ? ' · ' + esc(r.filterNote) : ''}</h3>
         <div class="row">
           <button class="btn sm" onclick="downloadSummaryPdf()">⬇ Download PDF</button>
           <button class="btn sm outline" onclick="downloadSummaryHtml()">⬇ Download HTML</button>
@@ -1073,6 +1074,7 @@ function reportBody(r){
         ${K.map(k => `<a class="k ${k.c}" href="#${k.t}"><div class="l">${k.l}</div><div class="v">${B(k.v)}</div><div class="s">${k.s}</div><div class="c">View details ▸</div></a>`).join('')}
       </div>
       <div class="toc"><b style="margin-right:10px;">Contents:</b>
+        <a href="#sec-split">Product &amp; Person</a>
         <a href="#sec-cash">2. Cash Flow &amp; Cash Book</a>
         <a href="#sec-category">3. Expenses by Category</a>
         <a href="#sec-register">4. Expense Register</a>
@@ -1080,6 +1082,8 @@ function reportBody(r){
         <a href="#sec-glossary">6. Terms Used</a>
       </div>
     </section>
+
+    ${reportSplitHtml(r, B)}
 
     <section id="sec-cash">
       <h2>2. Cash Flow Statement &amp; Cash Book</h2>
@@ -1166,7 +1170,7 @@ function buildReportDocument(r){
   </style></head><body><div class="rpt">${reportBody(r)}</div></body></html>`;
 }
 function reportFileName(r){ return `NidusLab-Financial-Summary-${r.label.replace(/[^a-z0-9]+/gi,'_')}`; }
-function currentSummaryReport(){ const pr = summaryRange(); return computePeriod(pr.from, pr.to, pr.label); }
+function currentSummaryReport(){ const pr = summaryRange(); return filterReport(computePeriod(pr.from, pr.to, pr.label)); }
 
 async function downloadSummaryHtml(){
   const r = currentSummaryReport();
@@ -2017,4 +2021,55 @@ function renderExpenses(){
         </tbody>
       </table>
     </div>`;
+}
+
+/* ----- Financial Summary: product / person filters + breakdown ----- */
+let sumFilter = { fund:'', person:'' };
+function setSumFilter(k, v){ sumFilter[k] = v; animNext = false; render(); }
+const fundOfExp = e => e.costFund || 'Unassigned';
+function splitTotals(list, keyFn){
+  const t = {};
+  list.forEach(e => { const k = keyFn(e); const o = t[k] || (t[k] = { name:k, count:0, total:0, company:0, employee:0 }); o.count++; o.total += num(e.amount); if (e.paidBy === 'COMPANY') o.company += num(e.amount); else o.employee += num(e.amount); });
+  return Object.values(t).sort((a, b) => b.total - a.total);
+}
+function filterReport(r){
+  r.allPeriodExpenses = r.expenses;
+  r.fundOptions = [...new Set(r.expenses.map(fundOfExp))].sort((a, b) => a.localeCompare(b));
+  r.personOptions = [...new Set(r.expenses.map(paidByName))].sort((a, b) => a.localeCompare(b));
+  if (sumFilter.fund && !r.fundOptions.includes(sumFilter.fund)) sumFilter.fund = '';
+  if (sumFilter.person && !r.personOptions.includes(sumFilter.person)) sumFilter.person = '';
+  if (sumFilter.fund || sumFilter.person){
+    const ex = r.expenses.filter(e => (!sumFilter.fund || fundOfExp(e) === sumFilter.fund) && (!sumFilter.person || paidByName(e) === sumFilter.person));
+    r.expenses = ex;
+    r.totalExpenses = sumBy(ex, e => e.amount);
+    r.companyPaid = sumBy(ex, e => e.paidBy === 'COMPANY' ? e.amount : 0);
+    r.employeePaid = sumBy(ex, e => e.paidBy === 'EMPLOYEE' ? e.amount : 0);
+    const cat = {};
+    ex.forEach(e => { const c = cat[e.category] || (cat[e.category] = { name:e.category, count:0, total:0, company:0, employee:0, items:[] }); c.count++; c.total += num(e.amount); if (e.paidBy === 'COMPANY') c.company += num(e.amount); else c.employee += num(e.amount); c.items.push(e); });
+    r.byCategory = Object.values(cat).sort((a, b) => b.total - a.total);
+    r.filterNote = [sumFilter.fund && ('Cost Fund: ' + sumFilter.fund), sumFilter.person && ('Person: ' + sumFilter.person)].filter(Boolean).join(' · ');
+  }
+  r.byFund = splitTotals(r.expenses, fundOfExp);
+  r.byPerson = splitTotals(r.expenses, paidByName);
+  return r;
+}
+function summaryFilterBar(r){
+  const opt = (arr, cur) => arr.map(v => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(v)}</option>`).join('');
+  return `<div class="filter-bar" style="margin:16px 0 0;">
+      <div class="field" style="margin:0;"><label>Cost Fund (product)</label><select onchange="setSumFilter('fund', this.value)"><option value="">All products</option>${opt(r.fundOptions || [], sumFilter.fund)}</select></div>
+      <div class="field" style="margin:0;"><label>Person</label><select onchange="setSumFilter('person', this.value)"><option value="">Everyone</option>${opt(r.personOptions || [], sumFilter.person)}</select></div>
+      ${sumFilter.fund || sumFilter.person ? `<button class="btn secondary sm" style="align-self:flex-end;" onclick="sumFilter={fund:'',person:''};animNext=false;render();">✕ Clear filters</button>` : ''}
+    </div>`;
+}
+function reportSplitHtml(r, B){
+  const tbl = (title, rows, first) => `<h3>${title}</h3><div class="tw"><table>
+      <thead><tr><th>${first}</th><th class="r">#</th><th class="r">Total</th><th class="r">Company account</th><th class="r">Own pocket</th></tr></thead>
+      <tbody>${rows.length ? rows.map(x => `<tr><td><b>${esc(x.name)}</b></td><td class="r">${x.count}</td><td class="r"><b>${B(x.total)}</b></td><td class="r">${B(x.company)}</td><td class="r">${B(x.employee)}</td></tr>`).join('')
+        + `<tr class="tot"><td>Total</td><td class="r">${r.expenses.length}</td><td class="r">${B(r.totalExpenses)}</td><td class="r">${B(r.companyPaid)}</td><td class="r">${B(r.employeePaid)}</td></tr>` : '<tr><td colspan="5" class="mut">No expenses.</td></tr>'}</tbody></table></div>`;
+  return `<section id="sec-split">
+      <h2>Spending by Product &amp; Person${r.filterNote ? ` <span class="hint-click">— filtered: ${esc(r.filterNote)}</span>` : ''}</h2>
+      ${r.filterNote ? `<p class="mut" style="font-size:12px;">Expense figures are filtered (${esc(r.filterNote)}). The cash flow and cash book below always show the whole company account.</p>` : ''}
+      ${tbl('By Cost Fund (product)', r.byFund || [], 'Cost Fund')}
+      ${tbl('By Person', r.byPerson || [], 'Person')}
+    </section>`;
 }

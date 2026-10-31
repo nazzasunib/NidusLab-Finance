@@ -396,7 +396,7 @@ function buildKpiHistory(key){
     fundsIn: { title:'Funds Received', note:`Money received from company in ${pr.label}.`, running:true,
       rows: r.fundsInList.map(f => ({ date:f.date, label:esc(f.description||'Fund received') + ` <span class="muted">(${METHODS[f.method]||f.method})</span>`, amount:num(f.amount) })) },
     totalExpenses: { title:'Total Expenses', note:`All expenses dated in ${pr.label} (paid by company or by employees).`, running:true,
-      rows: r.expenses.map(e => exRow(e, num(e.amount), ` <span class="muted">· ${PAID_BY_LABEL[e.paidBy]}${e.paidBy==='EMPLOYEE'?' ('+esc(employeeName(e))+')':''}</span>`)) },
+      rows: r.expenses.map(e => exRow(e, num(e.amount), ` <span class="muted">· ${esc(paidByName(e))}${e.paidBy==='COMPANY'?' (company account)':''}</span>`)) },
     companyPaid: { title:'Company Paid', note:'Expenses paid directly from the company fund — each one reduced Cash in Hand.', running:true,
       rows: r.expenses.filter(e => e.paidBy==='COMPANY').map(e => exRow(e, num(e.amount))) },
     employeePaid: { title:'Employee Paid', note:'Expenses employees paid from their own pocket — these become Employee Payable until reimbursed.', running:true,
@@ -435,7 +435,7 @@ function showKpiHistory(key){
 function expenseRowHtml(e){
   const st = expStatus(e);
   const due = dueOf(e);
-  const who = e.paidBy === 'EMPLOYEE' ? esc(employeeName(e)) : 'Company Fund';
+  const who = e.paidBy === 'EMPLOYEE' ? esc(employeeName(e)) : `${esc(paidByName(e))}<div class="muted" style="font-size:11px;">Company account</div>`;
   const click = `onclick="showExpenseDetail('${e.id}')"`;
   return `<tr>
     <td class="click" ${click} style="white-space:nowrap;">${formatDate(e.date)}</td>
@@ -451,41 +451,6 @@ function expenseRowHtml(e){
     </div></td>
   </tr>`;
 }
-function renderExpenses(){
-  const pr = periodRange();
-  const r = computePeriod(pr.from, pr.to, pr.label);
-  const list = [...r.expenses].sort(byDateDesc);
-  let body = '';
-  if (!list.length) body = `<tr><td colspan="7" class="empty">No expenses recorded for ${pr.label}.</td></tr>`;
-  else if (pr.all){
-    const groups = {};
-    list.forEach(e => (groups[e.date.slice(0,7)] = groups[e.date.slice(0,7)] || []).push(e));
-    body = Object.keys(groups).sort().reverse().map(ym => `
-      <tr class="month-row"><td colspan="4">${monthLabel(ym)} · ${groups[ym].length} expense(s)</td><td class="num">${formatBDT(sumBy(groups[ym], e=>e.amount))}</td><td colspan="2"></td></tr>
-      ${groups[ym].map(expenseRowHtml).join('')}`).join('');
-  } else body = list.map(expenseRowHtml).join('');
-
-  return `
-    <div class="page-head">
-      <div><h1>Expenses</h1><p class="subtitle" style="margin-bottom:0;">Showing: <b>${pr.label}</b> · click a row for full details &amp; journal entry.</p></div>
-      <div class="actions">${periodPicker()}${canWrite()?'<button class="btn" onclick="openExpenseModal()">+ Add Expense</button>':''}</div>
-    </div>
-    <div class="kpi-grid">
-      ${kpiCard({ label:'Total Expenses', value:r.totalExpenses, cls:'negative', sub:`${r.expenses.length} expense(s)` })}
-      ${kpiCard({ label:'Company Paid', value:r.companyPaid, sub:'From company fund' })}
-      ${kpiCard({ label:'Employee Paid', value:r.employeePaid, sub:'From own pocket' })}
-    </div>
-    ${fundSummaryHtml(r.expenses)}
-    <div class="card" style="padding:0;overflow-x:auto;">
-      <table>
-        <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Paid By</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead>
-        <tbody>${body}
-          ${list.length ? `<tr class="total-row"><td colspan="4">Total — ${pr.label}</td><td class="num">${formatBDT(r.totalExpenses)}</td><td colspan="2"></td></tr>` : ''}
-        </tbody>
-      </table>
-    </div>`;
-}
-
 /* ---------------------------------------------------------
    Reimbursements (Employee Payable)
    --------------------------------------------------------- */
@@ -991,7 +956,7 @@ function showExpenseDetail(id){
     <div class="card">
       <h3>Details</h3>
       <div style="font-size:13px;line-height:1.9;">
-        <div><span class="muted">Paid By:</span> ${PAID_BY_LABEL[e.paidBy]}${e.paidBy==='EMPLOYEE'?' — '+esc(employeeName(e)):''}</div>
+        <div><span class="muted">Paid By:</span> <b>${esc(paidByName(e))}</b> ${e.paidBy==='EMPLOYEE'?'(own pocket)':'(company account)'}</div>
         <div><span class="muted">Payment Method:</span> ${METHODS[e.paymentMethod]||esc(e.paymentMethod)}</div>
         ${e.costFund ? `<div><span class="muted">Cost Fund:</span> ${esc(e.costFund)}</div>` : ''}
         ${e.approvedByName ? `<div><span class="muted">Approved by:</span> <b>${esc(e.approvedByName)}</b>${e.approvedAt ? ' · ' + new Date(e.approvedAt).toLocaleString('en-GB') : ''}</div>` : ''}
@@ -1092,7 +1057,7 @@ function reportBody(r){
   ];
   const back = `<a class="back" href="#sec-exec">↑ Back to Executive Summary</a>`;
   const statusTxt = e => { const d = dueOf(e, r.to); return d > 0 ? `<span class="am">${paidSum(e, r.to) > 0 ? 'Partial' : 'Reimb. due'} ${B(d)}</span>` : `<span class="g">${e.paidBy==='COMPANY'?'Paid':'Reimbursed'}</span>`; };
-  const paidByTxt = e => e.paidBy === 'EMPLOYEE' ? `Employee — ${esc(employeeName(e))}` : 'Company fund';
+  const paidByTxt = e => e.paidBy === 'EMPLOYEE' ? `${esc(employeeName(e))} (own pocket)` : `${esc(paidByName(e))} (company account)`;
   const catId = i => `cat-${i}`;
 
   return `
@@ -1445,7 +1410,7 @@ function buildData(emp, exp, pay, fund, cf){
       id:r.id, date:r.date, category:r.category, accountCode: CATEGORY_ACCOUNT[r.category] || r.account_code || '5150', accountLabel:null,
       description:r.description || '', amount:num(r.amount), paidBy:r.paid_by, paymentMethod:r.payment_method || 'CASH',
       employee:r.paid_by === 'EMPLOYEE' ? (r.employee || '') : null, notes:r.notes || '',
-      costFund:r.cost_fund || '', status:r.status || 'APPROVED', approvedByName:r.approved_by_name || '', approvedAt:r.approved_at || null, rejectNote:r.reject_note || '', rejectedByName:r.rejected_by_name || '',
+      costFund:r.cost_fund || '', status:r.status || 'APPROVED', createdByName:r.created_by_name || '', approvedByName:r.approved_by_name || '', approvedAt:r.approved_at || null, rejectNote:r.reject_note || '', rejectedByName:r.rejected_by_name || '',
       photoPath:r.photo_path || null, photoName:r.photo_name || null, photoMime:r.photo_mime || null, photo:null,
       createdAt:Date.parse(r.created_at) || 0, payments:[],
     };
@@ -1869,7 +1834,7 @@ function renderMine(){
   return `<div class="page-head"><div><h1>My Dashboard</h1><p class="subtitle" style="margin-bottom:0;">Hi ${esc(me.name)} — how much you will get back, and your own expenses. New or edited expenses go to admin for approval.</p></div>
     <div class="actions"><button class="btn" onclick="openExpenseModal()">+ Request Expense</button></div></div>
     <div class="kpi-grid">
-      ${kpiCard({ label:'You Will Get (Koto Tk Pabo)', value:due, cls:'warning', icon:KPI_SVG.wallet, sub:'Still to receive from company', big:true })}
+      ${kpiCard({ label:'You Will Get', value:due, cls:'warning', icon:KPI_SVG.wallet, sub:'Still to receive from company', big:true })}
       ${kpiCard({ label:'Received', value:got, cls:'positive', icon:KPI_SVG.check, sub:'Already paid back to you' })}
       ${kpiCard({ label:'Approved Cost', value:total, cls:'negative', sub:`${appr.length} approved expense(s)` })}
       ${kpiCard({ label:'Pending Requests', value:pendAmt, cls:'info', icon:KPI_SVG.layers, sub:`${pend.length} waiting` })}
@@ -1985,4 +1950,71 @@ function showRequestDetail(id){
       <button class="btn secondary" onclick="closeModal('detailModal')">Close</button>
     </div>`;
   openModal('detailModal');
+}
+
+/* ----- Who paid: employee name, or the person who runs the company account ----- */
+function paidByName(e){ return e.paidBy === 'EMPLOYEE' ? employeeName(e) : ((e.createdByName || '').trim() || 'Company Fund'); }
+
+/* ----- Expenses page with filters (date via month picker, cost fund, person) ----- */
+let expFilter = { fund:'', person:'' };
+function setExpFilter(k, v){ expFilter[k] = v; animNext = false; render(); }
+function renderExpenses(){
+  const pr = periodRange();
+  const r = computePeriod(pr.from, pr.to, pr.label);
+  const all = r.expenses;
+  const fundOf = e => e.costFund || 'Unassigned';
+  const funds = [...new Set(all.map(fundOf))].sort((a, b) => a.localeCompare(b));
+  const people = [...new Set(all.map(paidByName))].sort((a, b) => a.localeCompare(b));
+  if (expFilter.fund && !funds.includes(expFilter.fund)) expFilter.fund = '';
+  if (expFilter.person && !people.includes(expFilter.person)) expFilter.person = '';
+  const list = all.filter(e => (!expFilter.fund || fundOf(e) === expFilter.fund) && (!expFilter.person || paidByName(e) === expFilter.person)).sort(byDateDesc);
+  const total = sumBy(list, e => e.amount), comp = sumBy(list.filter(e => e.paidBy === 'COMPANY'), e => e.amount), emp = sumBy(list.filter(e => e.paidBy === 'EMPLOYEE'), e => e.amount);
+  const filtered = !!(expFilter.fund || expFilter.person);
+  const scope = pr.label + (expFilter.fund ? ' · ' + expFilter.fund : '') + (expFilter.person ? ' · ' + expFilter.person : '');
+
+  let body = '';
+  if (!list.length) body = `<tr><td colspan="7" class="empty">No expenses for ${esc(scope)}.</td></tr>`;
+  else if (pr.all){
+    const groups = {};
+    list.forEach(e => (groups[e.date.slice(0,7)] = groups[e.date.slice(0,7)] || []).push(e));
+    body = Object.keys(groups).sort().reverse().map(ym => `
+      <tr class="month-row"><td colspan="4">${monthLabel(ym)} · ${groups[ym].length} expense(s)</td><td class="num">${formatBDT(sumBy(groups[ym], e=>e.amount))}</td><td colspan="2"></td></tr>
+      ${groups[ym].map(expenseRowHtml).join('')}`).join('');
+  } else body = list.map(expenseRowHtml).join('');
+
+  const pills = (title, keyFn, key) => {
+    const t = {}; all.filter(e => key === 'fund' ? (!expFilter.person || paidByName(e) === expFilter.person) : (!expFilter.fund || fundOf(e) === expFilter.fund))
+      .forEach(e => { const k = keyFn(e); t[k] = (t[k] || 0) + num(e.amount); });
+    const keys = Object.keys(t).sort((a, b) => t[b] - t[a]);
+    return `<div style="flex:1;min-width:260px;"><div style="font-weight:700;margin-bottom:8px;">${title}</div><div class="chips">${keys.length ? keys.map(k => `<button type="button" class="chip-btn ${expFilter[key] === k ? 'on' : ''}" onclick="setExpFilter('${key}', ${jsArg(expFilter[key] === k ? '' : k)})">${esc(k)} · <b>${formatBDT(t[k])}</b></button>`).join('') : '<span class="muted">—</span>'}</div></div>`;
+  };
+  const opt = (arr, cur) => arr.map(v => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(v)}</option>`).join('');
+
+  return `
+    <div class="page-head">
+      <div><h1>Expenses</h1><p class="subtitle" style="margin-bottom:0;">Showing: <b>${esc(scope)}</b> · newest date first · click a row for full details.</p></div>
+      <div class="actions">${periodPicker()}${canWrite()?'<button class="btn" onclick="openExpenseModal()">+ Add Expense</button>':''}</div>
+    </div>
+    <div class="card filter-bar">
+      <div class="field" style="margin:0;"><label>Cost Fund (product)</label><select onchange="setExpFilter('fund', this.value)"><option value="">All products</option>${opt(funds, expFilter.fund)}</select></div>
+      <div class="field" style="margin:0;"><label>Person</label><select onchange="setExpFilter('person', this.value)"><option value="">Everyone</option>${opt(people, expFilter.person)}</select></div>
+      ${filtered ? `<button class="btn secondary sm" style="align-self:flex-end;" onclick="expFilter={fund:'',person:''};animNext=false;render();">✕ Clear filters</button>` : ''}
+    </div>
+    <div class="kpi-grid">
+      ${kpiCard({ label:'Total Expenses', value:total, cls:'negative', sub:`${list.length} expense(s)` })}
+      ${kpiCard({ label:'Company Paid', value:comp, sub:'From company account' })}
+      ${kpiCard({ label:'Employee Paid', value:emp, sub:'From own pocket' })}
+    </div>
+    <div class="card" style="display:flex;gap:22px;flex-wrap:wrap;margin-bottom:18px;">
+      ${pills('By Cost Fund (product)', fundOf, 'fund')}
+      ${pills('By Person', paidByName, 'person')}
+    </div>
+    <div class="card" style="padding:0;overflow-x:auto;">
+      <table>
+        <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Paid By</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead>
+        <tbody>${body}
+          ${list.length ? `<tr class="total-row"><td colspan="4">Total — ${esc(scope)}</td><td class="num">${formatBDT(total)}</td><td colspan="2"></td></tr>` : ''}
+        </tbody>
+      </table>
+    </div>`;
 }

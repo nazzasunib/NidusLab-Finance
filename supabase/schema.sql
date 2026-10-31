@@ -529,3 +529,20 @@ begin
   return new;
 end $$;
 notify pgrst, 'reload schema';
+
+-- Who entered the expense (the person running the company account). Set by the database.
+alter table public.fin_expenses add column if not exists created_by_name text;
+create or replace function public.fin_stamp_creator() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if tg_op = 'INSERT' then
+    select coalesce(nullif(btrim(full_name), ''), username) into new.created_by_name from public.fin_profiles where id = coalesce(new.created_by, auth.uid());
+  else
+    new.created_by_name := old.created_by_name;
+  end if;
+  return new;
+end $$;
+revoke all on function public.fin_stamp_creator() from public, anon, authenticated;
+drop trigger if exists fin_expenses_stamp_creator on public.fin_expenses;
+create trigger fin_expenses_stamp_creator before insert or update on public.fin_expenses
+  for each row execute function public.fin_stamp_creator();

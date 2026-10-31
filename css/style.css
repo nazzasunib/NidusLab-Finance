@@ -305,3 +305,4 @@ tr:hover td{background:#f7f9fe;}
 .fund-pill b{margin-right:6px;}
 
 .badge-rejected{background:#fee4e2;color:#b42318;}
+.filter-bar{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px;} .filter-bar .field{min-width:200px;flex:1;max-width:320px;}

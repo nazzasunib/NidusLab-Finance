@@ -546,3 +546,6 @@ revoke all on function public.fin_stamp_creator() from public, anon, authenticat
 drop trigger if exists fin_expenses_stamp_creator on public.fin_expenses;
 create trigger fin_expenses_stamp_creator before insert or update on public.fin_expenses
   for each row execute function public.fin_stamp_creator();
+
+-- Files / photos attached to a reimbursement payment: [{path, name, mime}]
+alter table public.fin_expense_payments add column if not exists attachments jsonb not null default '[]'::jsonb;

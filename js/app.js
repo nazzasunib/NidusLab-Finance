@@ -855,7 +855,7 @@ function paymentTargets(dateLimit = END){
   if (paymentCtx.mode === 'EXPENSE'){ const e = data.expenses.find(x => x.id === paymentCtx.ref); return e && e.date <= dateLimit && dueOf(e) > 0 ? [e] : []; }
   return empDueList(paymentCtx.ref, dateLimit);
 }
-function allocatePayments(list, amount, { date, method, note, kind }){
+function allocatePayments(list, amount, { date, method, note, kind, files }){
   let left = round2(amount);
   for (const e of list){
     if (left <= 0) break;
@@ -863,13 +863,14 @@ function allocatePayments(list, amount, { date, method, note, kind }){
     if (due <= 0) continue;
     const pay = round2(Math.min(due, left));
     e.payments = e.payments || [];
-    e.payments.push({ id:uid(), kind, date, amount:pay, method, note:note || '', createdAt:Date.now() });
+    e.payments.push({ id:uid(), kind, date, amount:pay, method, note:note || '', attachments:[], _files:(files || []).slice(), createdAt:Date.now() });
     left = round2(left - pay);
   }
   return left;
 }
 function openPaymentModal(mode, ref){
   paymentCtx = { mode, ref };
+  const pf = document.getElementById('payment_files'); if (pf) pf.value = '';
   const all = paymentTargets();
   if (!all.length){ alert('Nothing is due.'); return; }
   paymentCtx.kind = 'REIMBURSE';
@@ -914,8 +915,10 @@ function savePayment(){
   const due = sumBy(list, e => dueOf(e));
   if (!date){ alert('Please choose a payment date.'); return; }
   if (amount <= 0 || amount > due){ alert(`Amount must be greater than 0 and not more than ${formatBDT(due)} (due for expenses dated on or before ${formatDate(date)}).`); return; }
+  const files = [...((document.getElementById('payment_files') || {}).files || [])];
+  if (files.some(f => f.size > 10 * 1024 * 1024)){ alert('Each file must be under 10 MB.'); return; }
   if (!confirmCash(amount, date)) return;
-  allocatePayments(list, amount, { date, method, note, kind:paymentCtx.kind });
+  allocatePayments(list, amount, { date, method, note, kind:paymentCtx.kind, files });
   saveData(); closeModal('paymentModal');
   if (document.getElementById('detailModal').classList.contains('open') && paymentCtx.mode === 'EXPENSE') showExpenseDetail(paymentCtx.ref);
   render();
@@ -966,7 +969,7 @@ function showExpenseDetail(id){
     ${(e.payments||[]).length ? `<div class="card">
       <h3>Reimbursement Payments</h3>
       <table><thead><tr><th>Date</th><th>Method</th><th>Note</th><th class="num">Amount</th><th></th></tr></thead><tbody>
-      ${[...e.payments].sort(byDateAsc).map(p => `<tr><td>${formatDate(p.date)}</td><td>${METHODS[p.method]||esc(p.method)}</td><td>${esc(p.note||'—')}</td><td class="num green">${formatBDT(p.amount)}</td>
+      ${[...e.payments].sort(byDateAsc).map(p => `<tr><td>${formatDate(p.date)}</td><td>${METHODS[p.method]||esc(p.method)}</td><td>${esc(p.note||'—')}${(p.attachments||[]).length ? `<div style="font-size:12px;margin-top:3px;">${payAttachLinks(p)}</div>` : ''}</td><td class="num green">${formatBDT(p.amount)}</td>
         <td>${canWrite()?`<button class="btn sm danger" onclick="deletePayment('${e.id}','${p.id}')">Delete</button>`:''}</td></tr>`).join('')}
       </tbody></table></div>` : ''}
     <div class="card">
@@ -1426,7 +1429,7 @@ function buildData(emp, exp, pay, fund, cf){
   });
   pay.forEach(p => {
     const e = byId[p.expense_id];
-    if (e && e.paidBy === 'EMPLOYEE') e.payments.push({ id:p.id, kind:p.kind || 'REIMBURSE', date:p.date, amount:num(p.amount), method:p.method || 'CASH', note:p.note || '', createdAt:Date.parse(p.created_at) || 0 });
+    if (e && e.paidBy === 'EMPLOYEE') e.payments.push({ id:p.id, kind:p.kind || 'REIMBURSE', date:p.date, amount:num(p.amount), method:p.method || 'CASH', note:p.note || '', attachments:(p.attachments || []).map(a => ({ path:a.path, name:a.name || null, mime:a.mime || null })), createdAt:Date.parse(p.created_at) || 0 });
   });
   fund.forEach(f => d.funds.push({ id:f.id, date:f.date, type:f.type, description:f.description || '', amount:num(f.amount), method:f.method || 'CASH', createdAt:Date.parse(f.created_at) || 0 }));
   return d;
@@ -1455,6 +1458,7 @@ async function reloadData(force){
     allExp(nd).forEach(e => { const o = old.get(e.id); if (o && o.photoPath === e.photoPath && o.photo) e.photo = o.photo; });
   }
   await attachSignedUrls(allExp(nd).filter(e => !e.photo));
+  await attachPaymentUrls(allExp(nd));
   data = nd; snap = s;
   return true;
 }
@@ -1463,7 +1467,7 @@ async function reloadData(force){
 let snap = { exp:new Map(), pay:new Map(), fund:new Map(), emp:new Set(), cf:new Set(), sig:'' };
 const iso = ms => new Date(ms || Date.now()).toISOString();
 function expRow(e){ return { id:e.id, date:e.date, category:e.category, account_code:e.accountCode || '5150', description:e.description || '', amount:round2(num(e.amount)), paid_by:e.paidBy, payment_method:e.paymentMethod || 'CASH', employee:e.paidBy === 'EMPLOYEE' ? (e.employee || null) : null, notes:e.notes || '', cost_fund:e.costFund || '', status:e.status || 'APPROVED', photo_path:e.photoPath || null, photo_name:e.photoName || null, photo_mime:e.photoMime || null, created_at:iso(e.createdAt) }; }
-function payRow(p, eid){ return { id:p.id, expense_id:eid, kind:p.kind || 'REIMBURSE', date:p.date, amount:round2(num(p.amount)), method:p.method || 'CASH', note:p.note || '', created_at:iso(p.createdAt) }; }
+function payRow(p, eid){ return { id:p.id, expense_id:eid, kind:p.kind || 'REIMBURSE', date:p.date, amount:round2(num(p.amount)), method:p.method || 'CASH', note:p.note || '', attachments:(p.attachments || []).map(a => ({ path:a.path, name:a.name || null, mime:a.mime || null })), created_at:iso(p.createdAt) }; }
 function fundRow(f){ return { id:f.id, date:f.date, type:f.type, description:f.description || '', amount:round2(num(f.amount)), method:f.method || 'CASH', created_at:iso(f.createdAt) }; }
 function snapshotOf(d){
   const s = { exp:new Map(), pay:new Map(), fund:new Map(), emp:new Set(d.employees), cf:new Set(d.costFunds || []), sig:'' };
@@ -1500,6 +1504,22 @@ async function pushChanges(){
       e.photoPath = path; e.photoMime = f.type || null; e.photoName = f.name; delete e.photoFile;
     }
   }
+  // 1b) upload files attached to reimbursement payments (one upload per file, shared by split payments)
+  const upCache = new Map();
+  for (const e of allExp(data)) for (const p of (e.payments || [])){
+    if (!p._files || !p._files.length) continue;
+    const att = [];
+    for (const f of p._files){
+      if (!upCache.has(f)){
+        const path = `payments/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safeName(f.name)}`;
+        chk(await sb.storage.from(BUCKET).upload(path, f, { contentType: f.type || 'application/octet-stream', upsert: false }));
+        upCache.set(f, { path, name: f.name, mime: f.type || null });
+      }
+      att.push(upCache.get(f));
+    }
+    p.attachments = (p.attachments || []).concat(att); delete p._files;
+  }
+  if (upCache.size) attachPaymentUrls(allExp(data));
   const cur = snapshotOf(data);
   const changed = m => [...cur[m].entries()].filter(([id, v]) => !snap[m].has(id) || snap[m].get(id).json !== v.json).map(([, v]) => v.row);
   const removed = m => [...snap[m].keys()].filter(id => !cur[m].has(id));
@@ -1537,7 +1557,7 @@ function startRealtime(){
   rtChannel = sb.channel('fin-live');
   ['fin_expenses','fin_expense_payments','fin_funds','fin_employees','fin_profiles','fin_cost_funds'].forEach(t => rtChannel.on('postgres_changes', { event:'*', schema:'public', table:t }, () => scheduleRefresh()));
   rtChannel.subscribe(st => { if (!pushing) setSync(st === 'SUBSCRIBED' ? 'live' : (st === 'CLOSED' || st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') ? 'offline' : 'live'); });
-  setInterval(() => { if (data) attachSignedUrls(allExp(data)); }, 45 * 60 * 1000);
+  setInterval(() => { if (data){ attachSignedUrls(allExp(data)); attachPaymentUrls(allExp(data)); } }, 45 * 60 * 1000);
 }
 function stopRealtime(){ if (rtChannel){ sb.removeChannel(rtChannel); rtChannel = null; } }
 function scheduleRefresh(){
@@ -1630,6 +1650,21 @@ async function boot(){
 async function toDataUri(url){
   const blob = await (await fetch(url)).blob();
   return await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
+}
+
+/* ---------- Signed links for reimbursement payment attachments ---------- */
+async function attachPaymentUrls(list){
+  const atts = [];
+  list.forEach(e => (e.payments || []).forEach(p => (p.attachments || []).forEach(a => { if (a.path) atts.push(a); })));
+  if (!atts.length) return;
+  const paths = [...new Set(atts.map(a => a.path))];
+  const { data: signed } = await sb.storage.from(BUCKET).createSignedUrls(paths, 3600);
+  if (!signed) return;
+  const m = new Map(signed.map(s => [s.path, s.signedUrl]));
+  atts.forEach(a => { a.url = m.get(a.path) || a.url || null; });
+}
+function payAttachLinks(p){
+  return (p.attachments || []).filter(a => a.url).map(a => `<a href="${a.url}" target="_blank" rel="noopener" title="${esc(a.name || 'file')}">📎 ${esc((a.name || 'file').slice(0, 24))}</a>`).join('<br>');
 }
 
 /* =========================================================
@@ -1832,7 +1867,7 @@ function renderMine(){
       : `<span class="badge-status badge-partial">Approved</span><div class="amber" style="font-size:11.5px;margin-top:3px;">You get ${formatBDT(left)}</div>`)
         + (e.approvedByName ? `<div class="muted" style="font-size:11.5px;margin-top:3px;">✓ Approved by ${esc(e.approvedByName)}</div>` : '');
     return `<tr><td style="white-space:nowrap;">${formatDate(e.date)}</td><td>${e.costFund ? `<span class="tag">${esc(e.costFund)}</span>` : '—'}</td><td>${esc(e.category)}</td>
-      <td style="max-width:220px;">${esc(e.description || '—')}${e.photo ? ' 📎' : ''}</td><td class="num"><b>${formatBDT(e.amount)}</b></td><td>${st}</td>
+      <td style="max-width:220px;">${esc(e.description || '—')}${e.photo ? ' 📎' : ''}</td><td class="num"><b>${formatBDT(e.amount)}</b></td><td>${st}${(e.payments || []).some(p => (p.attachments || []).length) ? `<div style="font-size:11.5px;margin-top:4px;">${(e.payments || []).map(payAttachLinks).filter(Boolean).join('<br>')}</div>` : ''}</td>
       <td>${(e.payments || []).length ? '' : `<button class="btn sm outline" onclick="openEditExpense('${e.id}')">✎ Edit</button>`}</td></tr>`;
   }).join('') : `<tr><td colspan="7" class="empty">No expenses yet. Tap "+ Request Expense".</td></tr>`;
   return `<div class="page-head"><div><h1>My Dashboard</h1><p class="subtitle" style="margin-bottom:0;">Hi ${esc(me.name)} — how much you will get back, and your own expenses. New or edited expenses go to admin for approval.</p></div>

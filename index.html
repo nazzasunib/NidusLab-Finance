@@ -275,6 +275,11 @@
       <div class="field"><label>Payment Method</label><select id="payment_method"></select></div>
       <div class="field"><label>Note (optional)</label><input type="text" id="payment_note"></div>
     </div>
+    <div class="field">
+      <label>+ Attach Files / Photos (optional)</label>
+      <input type="file" id="payment_files" multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx">
+      <div class="hint">bKash / bank screenshot, money receipt, etc. You can pick several files (max 10 MB each).</div>
+    </div>
     <div id="payment_preview"></div>
     <div class="modal-actions">
       <button class="btn" id="paymentSaveBtn" onclick="savePayment()">Record Payment</button>

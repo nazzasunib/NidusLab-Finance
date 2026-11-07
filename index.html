@@ -205,8 +205,10 @@
       <select id="exp_employee" style="display:none;" onchange="updateExpensePreview()"></select>
     </div>
     <div class="field">
-      <label>+ Attach Receipt / Photo / File (optional)</label>
-      <input type="file" id="exp_photo" accept="image/*,application/pdf" onchange="previewExpensePhoto(event)">
+      <label>+ Attach Receipts / Photos / Files (optional, more than one OK)</label>
+      <input type="file" id="exp_photo" multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" onchange="previewExpensePhoto(event)">
+      <div class="hint">You can pick several files at once, or add more one by one (max 10 MB each).</div>
+      <div id="exp_files_list"></div>
       <img id="exp_photo_preview" class="photo-preview hidden">
       <div id="exp_photo_filename" class="hint hidden"></div>
       <a href="#" id="exp_photo_remove" class="hint hidden" style="color:var(--red);" onclick="removeExpensePhoto();return false;">Remove attachment</a>

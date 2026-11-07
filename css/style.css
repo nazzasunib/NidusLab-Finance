@@ -306,3 +306,6 @@ tr:hover td{background:#f7f9fe;}
 
 .badge-rejected{background:#fee4e2;color:#b42318;}
 .filter-bar{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px;} .filter-bar .field{min-width:200px;flex:1;max-width:320px;}
+.file-chip{display:flex;gap:8px;align-items:center;padding:8px 12px;margin-top:8px;border:1px solid #e3e8f4;border-radius:10px;background:#f8faff;font-size:13px;}
+.file-card{border:1px solid #e3e8f4;border-radius:12px;overflow:hidden;margin-bottom:12px;background:#fff;}
+.file-head{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:8px 12px;background:#f4f6fb;font-weight:600;font-size:13px;}

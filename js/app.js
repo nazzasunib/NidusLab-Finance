@@ -440,7 +440,7 @@ function expenseRowHtml(e){
   return `<tr>
     <td class="click" ${click} style="white-space:nowrap;">${formatDate(e.date)}</td>
     <td class="click" ${click}>${esc(e.category)}</td>
-    <td class="click" ${click} style="max-width:220px;overflow:hidden;text-overflow:ellipsis;">${e.costFund?`<span class="tag">${esc(e.costFund)}</span> `:''}${esc(e.description||'—')}${e.photo?' 📎':''}</td>
+    <td class="click" ${click} style="max-width:220px;overflow:hidden;text-overflow:ellipsis;">${e.costFund?`<span class="tag">${esc(e.costFund)}</span> `:''}${esc(e.description||'—')}${allFilesOf(e).length?' 📎'+(allFilesOf(e).length>1?allFilesOf(e).length:''):''}</td>
     <td class="click" ${click}>${who}</td>
     <td class="click num" ${click}><b>${formatBDT(e.amount)}</b></td>
     <td class="click" ${click}><span class="badge-status ${st.cls}">${st.label}</span>${due>0?`<div class="amber" style="font-size:11.5px;margin-top:3px;">Due ${formatBDT(due)}</div>`:''}</td>
@@ -601,6 +601,7 @@ function prepExpenseModal(){
   document.getElementById('exp_method').innerHTML = methodOptions('CASH');
   refreshEmployeeDropdown();
   setCostFundFor(null);
+  window._expFilesKeep = []; window._expFilesNew = []; renderExpFiles();
   ['exp_description','exp_amount','exp_notes','exp_category_other','exp_photo'].forEach(id => document.getElementById(id).value = '');
   ['exp_photo_preview','exp_photo_filename','exp_photo_remove','exp_employee_field','exp_category_other_field'].forEach(id => document.getElementById(id).classList.add('hidden'));
   document.querySelector('input[name="exp_paidby"][value="COMPANY"]').checked = true;
@@ -633,6 +634,7 @@ function openEditExpense(id){
     window._expPhotoKeep = { path:e.photoPath, name:e.photoName, mime:e.photoMime, url:e.photo };
     showPhotoPreview(e.photo, e.photoName, isImageFile(e));
   }
+  window._expFilesKeep = (e.files || []).map(a => ({ ...a })); window._expFilesNew = []; renderExpFiles();
   setCostFundFor(e);
   togglePaidBy();
   applyRoleToExpenseModal();
@@ -955,7 +957,7 @@ function showExpenseDetail(id){
       ${canWrite()?`<button class="btn sm outline" onclick="openEditExpense('${e.id}')">Edit</button>`:''}
       ${canWrite()?`<button class="btn sm danger" onclick="deleteExpense('${e.id}')">Delete</button>`:''}
     </div>
-    ${e.photo ? `<div class="card"><h3>${isImg?'Photo / Receipt':'Attached File'}</h3>${isImg ? `<img src="${e.photo}" style="max-height:220px;max-width:100%;border-radius:8px;">` : `<a href="${e.photo}" download="${esc(e.photoName||'attachment')}">${esc(e.photoName||'Download attachment')}</a>`}</div>` : ''}
+    ${allFilesOf(e).length ? `<div class="card"><h3>Receipts / Files (${allFilesOf(e).length})</h3>${fileViewerHtml(allFilesOf(e))}</div>` : ''}
     <div class="card">
       <h3>Details</h3>
       <div style="font-size:13px;line-height:1.9;">
@@ -1419,6 +1421,7 @@ function buildData(emp, exp, pay, fund, cf){
       employee:r.paid_by === 'EMPLOYEE' ? (r.employee || '') : null, notes:r.notes || '',
       costFund:r.cost_fund || '', status:r.status || 'APPROVED', createdByName:r.created_by_name || '', approvedByName:r.approved_by_name || '', approvedAt:r.approved_at || null, rejectNote:r.reject_note || '', rejectedByName:r.rejected_by_name || '',
       photoPath:r.photo_path || null, photoName:r.photo_name || null, photoMime:r.photo_mime || null, photo:null,
+      files:(r.files || []).map(a => ({ path:a.path, name:a.name || null, mime:a.mime || null })),
       createdAt:Date.parse(r.created_at) || 0, payments:[],
     };
     byId[e.id] = e;
@@ -1466,7 +1469,7 @@ async function reloadData(force){
 /* ---------- Data: snapshot + diff push ---------- */
 let snap = { exp:new Map(), pay:new Map(), fund:new Map(), emp:new Set(), cf:new Set(), sig:'' };
 const iso = ms => new Date(ms || Date.now()).toISOString();
-function expRow(e){ return { id:e.id, date:e.date, category:e.category, account_code:e.accountCode || '5150', description:e.description || '', amount:round2(num(e.amount)), paid_by:e.paidBy, payment_method:e.paymentMethod || 'CASH', employee:e.paidBy === 'EMPLOYEE' ? (e.employee || null) : null, notes:e.notes || '', cost_fund:e.costFund || '', status:e.status || 'APPROVED', photo_path:e.photoPath || null, photo_name:e.photoName || null, photo_mime:e.photoMime || null, created_at:iso(e.createdAt) }; }
+function expRow(e){ return { id:e.id, date:e.date, category:e.category, account_code:e.accountCode || '5150', description:e.description || '', amount:round2(num(e.amount)), paid_by:e.paidBy, payment_method:e.paymentMethod || 'CASH', employee:e.paidBy === 'EMPLOYEE' ? (e.employee || null) : null, notes:e.notes || '', cost_fund:e.costFund || '', status:e.status || 'APPROVED', photo_path:e.photoPath || null, photo_name:e.photoName || null, photo_mime:e.photoMime || null, files:(e.files || []).map(a => ({ path:a.path, name:a.name || null, mime:a.mime || null })), created_at:iso(e.createdAt) }; }
 function payRow(p, eid){ return { id:p.id, expense_id:eid, kind:p.kind || 'REIMBURSE', date:p.date, amount:round2(num(p.amount)), method:p.method || 'CASH', note:p.note || '', attachments:(p.attachments || []).map(a => ({ path:a.path, name:a.name || null, mime:a.mime || null })), created_at:iso(p.createdAt) }; }
 function fundRow(f){ return { id:f.id, date:f.date, type:f.type, description:f.description || '', amount:round2(num(f.amount)), method:f.method || 'CASH', created_at:iso(f.createdAt) }; }
 function snapshotOf(d){
@@ -1503,6 +1506,17 @@ async function pushChanges(){
       chk(await sb.storage.from(BUCKET).upload(path, f, { contentType: f.type || 'application/octet-stream', upsert: false }));
       e.photoPath = path; e.photoMime = f.type || null; e.photoName = f.name; delete e.photoFile;
     }
+  }
+  // 1a) upload extra expense files
+  for (const e of allExp(data)){
+    if (!e._filesNew || !e._filesNew.length) continue;
+    const add = [];
+    for (const f of e._filesNew){
+      const path = `${e.id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safeName(f.name)}`;
+      chk(await sb.storage.from(BUCKET).upload(path, f, { contentType: f.type || 'application/octet-stream', upsert: false }));
+      add.push({ path, name: f.name, mime: f.type || null, url: URL.createObjectURL(f) });
+    }
+    e.files = (e.files || []).concat(add); delete e._filesNew;
   }
   // 1b) upload files attached to reimbursement payments (one upload per file, shared by split payments)
   const upCache = new Map();
@@ -1632,6 +1646,9 @@ async function changeUserRole(id, role){
 
 /* ---------- Attachments helpers used by the expense modal ---------- */
 function photoFields(){
+  return Object.assign(photoFieldsPrimary(), { files:(window._expFilesKeep || []).slice(), _filesNew:(window._expFilesNew || []).slice() });
+}
+function photoFieldsPrimary(){
   const file = window._expPhotoFile, keep = window._expPhotoKeep;
   if (file) return { photoFile:file, photoPath:(keep && keep.path) || null, photoName:file.name, photoMime:file.type || null, photo:URL.createObjectURL(file) };
   if (keep) return { photoFile:null, photoPath:keep.path || null, photoName:keep.name || null, photoMime:keep.mime || null, photo:keep.url || null };
@@ -1655,7 +1672,7 @@ async function toDataUri(url){
 /* ---------- Signed links for reimbursement payment attachments ---------- */
 async function attachPaymentUrls(list){
   const atts = [];
-  list.forEach(e => (e.payments || []).forEach(p => (p.attachments || []).forEach(a => { if (a.path) atts.push(a); })));
+  list.forEach(e => { (e.files || []).forEach(a => { if (a.path) atts.push(a); }); (e.payments || []).forEach(p => (p.attachments || []).forEach(a => { if (a.path) atts.push(a); })); });
   if (!atts.length) return;
   const paths = [...new Set(atts.map(a => a.path))];
   const { data: signed } = await sb.storage.from(BUCKET).createSignedUrls(paths, 3600);
@@ -1979,8 +1996,8 @@ function showRequestDetail(id){
       ${row('Notes', e.notes ? esc(e.notes).replace(/\n/g, '<br>') : '—')}
       ${row('Sent on', e.createdAt ? new Date(e.createdAt).toLocaleString('en-GB') : '—')}
     </table>
-    <div style="margin-top:14px;"><div class="muted" style="margin-bottom:6px;">Receipt / File</div>
-      ${e.photo ? (isImg ? `<a href="${e.photo}" target="_blank" rel="noopener"><img src="${e.photo}" style="max-width:100%;max-height:320px;border-radius:12px;border:1px solid #e3e8f4;"></a>` : `<a class="btn sm secondary" href="${e.photo}" target="_blank" rel="noopener">📎 Open ${esc(e.photoName || 'file')}</a>`) : '<span class="muted">No receipt attached</span>'}
+    <div style="margin-top:14px;"><div class="muted" style="margin-bottom:6px;">Receipts / Files (${allFilesOf(e).length})</div>
+      ${fileViewerHtml(allFilesOf(e))}
     </div>
     <div class="modal-actions">
       <button class="btn success" onclick="closeModal('detailModal');approveRequest('${e.id}')">✓ Approve</button>
@@ -2114,3 +2131,48 @@ function reportSplitHtml(r, B){
       ${tbl('By Person', r.byPerson || [], 'Person')}
     </section>`;
 }
+
+/* ----- Expense files: several per expense + inline viewer (PDF / image) ----- */
+const isPdfFile = a => /pdf/i.test(a.mime || '') || /\.pdf$/i.test(a.name || a.path || '');
+const isImgFile = a => /^image\//i.test(a.mime || '') || /\.(png|jpe?g|gif|webp|bmp|avif|svg)$/i.test(a.name || a.path || '');
+function allFilesOf(e){
+  const out = [];
+  if (e.photo || e.photoPath) out.push({ path:e.photoPath, name:e.photoName || 'Receipt', mime:e.photoMime, url:e.photo });
+  (e.files || []).forEach(a => out.push(a));
+  return out;
+}
+function fileViewerHtml(files){
+  if (!files.length) return '<span class="muted">No receipt attached</span>';
+  return files.map((a, i) => {
+    const name = esc(a.name || ('File ' + (i + 1)));
+    if (!a.url) return `<div class="file-card"><div class="file-head">📎 ${name}</div><div class="muted" style="padding:10px;">Loading link…</div></div>`;
+    const open = `<a class="btn sm secondary" href="${a.url}" target="_blank" rel="noopener">Open full</a>`;
+    if (isImgFile(a)) return `<div class="file-card"><div class="file-head">🖼 ${name} ${open}</div><a href="${a.url}" target="_blank" rel="noopener"><img src="${a.url}" style="display:block;max-width:100%;max-height:420px;margin:0 auto;"></a></div>`;
+    if (isPdfFile(a)) return `<div class="file-card"><div class="file-head">📄 ${name} ${open}</div><iframe src="${a.url}" title="${name}" style="width:100%;height:520px;border:0;background:#f4f6fb;"></iframe></div>`;
+    return `<div class="file-card"><div class="file-head">📎 ${name} ${open}</div></div>`;
+  }).join('');
+}
+function renderExpFiles(){
+  const box = $('exp_files_list'); if (!box) return;
+  const items = [];
+  if (window._expPhotoFile) items.push({ t:'new', name:window._expPhotoFile.name, rm:'removeExpensePhoto()' });
+  else if (window._expPhotoKeep && (window._expPhotoKeep.path || window._expPhotoKeep.url)) items.push({ t:'saved', name:window._expPhotoKeep.name || 'Receipt', url:window._expPhotoKeep.url, rm:'removeExpensePhoto()' });
+  (window._expFilesKeep || []).forEach((a, i) => items.push({ t:'saved', name:a.name || 'File', url:a.url, rm:`removeExpFile('keep',${i})` }));
+  (window._expFilesNew || []).forEach((a, i) => items.push({ t:'new', name:a.name, rm:`removeExpFile('new',${i})` }));
+  box.innerHTML = items.length ? items.map(x => `<div class="file-chip">📎 ${x.url ? `<a href="${x.url}" target="_blank" rel="noopener">${esc(x.name)}</a>` : esc(x.name)} <span class="muted">${x.t === 'new' ? '(new)' : ''}</span> <a href="#" style="color:var(--red);margin-left:auto;" onclick="${x.rm};return false;">✕ Remove</a></div>`).join('') : '';
+  ['exp_photo_preview', 'exp_photo_filename', 'exp_photo_remove'].forEach(id => { const el = $(id); if (el) el.classList.add('hidden'); });
+}
+// overrides of the single-file helpers (later declarations win)
+function showPhotoPreview(){ renderExpFiles(); }
+function previewExpensePhoto(ev){
+  const files = [...(ev.target.files || [])]; ev.target.value = '';
+  if (files.some(x => x.size > 10 * 1024 * 1024)){ alert('Each file must be under 10 MB.'); return; }
+  window._expFilesNew = window._expFilesNew || [];
+  files.forEach(x => {
+    if (!window._expPhotoFile && !(window._expPhotoKeep && (window._expPhotoKeep.path || window._expPhotoKeep.url))) window._expPhotoFile = x;
+    else window._expFilesNew.push(x);
+  });
+  renderExpFiles();
+}
+function removeExpensePhoto(){ window._expPhotoFile = null; window._expPhotoKeep = null; renderExpFiles(); }
+function removeExpFile(kind, i){ (kind === 'keep' ? window._expFilesKeep : window._expFilesNew).splice(i, 1); renderExpFiles(); }

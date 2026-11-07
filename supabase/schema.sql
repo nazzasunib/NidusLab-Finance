@@ -549,3 +549,6 @@ create trigger fin_expenses_stamp_creator before insert or update on public.fin_
 
 -- Files / photos attached to a reimbursement payment: [{path, name, mime}]
 alter table public.fin_expense_payments add column if not exists attachments jsonb not null default '[]'::jsonb;
+
+-- Extra files per expense (besides the first receipt): [{path, name, mime}]
+alter table public.fin_expenses add column if not exists files jsonb not null default '[]'::jsonb;

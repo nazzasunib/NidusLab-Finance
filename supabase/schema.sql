@@ -552,3 +552,65 @@ alter table public.fin_expense_payments add column if not exists attachments jso
 
 -- Extra files per expense (besides the first receipt): [{path, name, mime}]
 alter table public.fin_expenses add column if not exists files jsonb not null default '[]'::jsonb;
+-- Advance wallet: money handed to a person to spend, and what they spent from it.
+-- Separate from company cash, expenses and reimbursement requests.
+create table if not exists public.fin_wallet (
+  id              uuid primary key default gen_random_uuid(),
+  owner_id        uuid not null references auth.users(id) on delete cascade,
+  owner_name      text,
+  type            text not null check (type in ('IN','OUT')),
+  date            date not null check (date >= date '2026-10-01'),
+  amount          numeric(14,2) not null check (amount > 0),
+  source          text not null default '',
+  category        text not null default '',
+  cost_fund       text not null default '',
+  description     text not null default '',
+  notes           text not null default '',
+  method          text not null default 'CASH',
+  files           jsonb not null default '[]'::jsonb,
+  created_by      uuid default auth.uid() references auth.users(id) on delete set null,
+  created_by_name text,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+create index if not exists fin_wallet_owner_idx on public.fin_wallet(owner_id, date);
+
+create or replace function public.fin_wallet_stamp() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  select coalesce(nullif(btrim(full_name), ''), username) into new.owner_name from public.fin_profiles where id = new.owner_id;
+  if tg_op = 'INSERT' then
+    select coalesce(nullif(btrim(full_name), ''), username) into new.created_by_name from public.fin_profiles where id = coalesce(new.created_by, auth.uid());
+  else
+    new.created_by := old.created_by; new.created_by_name := old.created_by_name; new.created_at := old.created_at;
+  end if;
+  new.updated_at := now();
+  return new;
+end $$;
+revoke all on function public.fin_wallet_stamp() from public, anon, authenticated;
+drop trigger if exists fin_wallet_stamp on public.fin_wallet;
+create trigger fin_wallet_stamp before insert or update on public.fin_wallet for each row execute function public.fin_wallet_stamp();
+
+alter table public.fin_wallet enable row level security;
+revoke all on public.fin_wallet from anon;
+grant select, insert, update, delete on public.fin_wallet to authenticated;
+drop policy if exists fin_wallet_select on public.fin_wallet;
+drop policy if exists fin_wallet_insert on public.fin_wallet;
+drop policy if exists fin_wallet_update on public.fin_wallet;
+drop policy if exists fin_wallet_delete on public.fin_wallet;
+create policy fin_wallet_select on public.fin_wallet for select to authenticated
+  using (public.fin_can_write() or (public.fin_can_read() and owner_id = auth.uid()));
+create policy fin_wallet_insert on public.fin_wallet for insert to authenticated
+  with check (public.fin_can_write() or (public.fin_can_read() and owner_id = auth.uid()));
+create policy fin_wallet_update on public.fin_wallet for update to authenticated
+  using (public.fin_can_write() or (public.fin_can_read() and owner_id = auth.uid()))
+  with check (public.fin_can_write() or (public.fin_can_read() and owner_id = auth.uid()));
+create policy fin_wallet_delete on public.fin_wallet for delete to authenticated
+  using (public.fin_can_write() or (public.fin_can_read() and owner_id = auth.uid()));
+
+do $$ begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'fin_wallet') then
+    alter publication supabase_realtime add table public.fin_wallet;
+  end if;
+end $$;
+notify pgrst, 'reload schema';

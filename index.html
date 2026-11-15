@@ -290,6 +290,46 @@
   </div>
 </div>
 
+<!-- Advance wallet modal -->
+<div class="modal-overlay" id="walletModal">
+  <div class="modal">
+    <span class="close-x" onclick="closeModal('walletModal')">&times;</span>
+    <h2 id="walletModalTitle">Wallet</h2>
+    <div class="field-row">
+      <div class="field"><label>Date</label><input type="date" id="wal_date"></div>
+      <div class="field"><label>Amount (৳)</label><input type="number" id="wal_amount" min="0" step="0.01" oninput="updateWalletPreview()"></div>
+    </div>
+    <div id="wal_in_fields">
+      <div class="field"><label>Received from <span style="color:var(--rose,#e5484d);">*</span></label><input type="text" id="wal_source" placeholder="e.g. CTO, Riad Hasan, Office"></div>
+    </div>
+    <div id="wal_out_fields">
+      <div class="field-row">
+        <div class="field"><label>Category</label>
+          <input type="search" id="wal_cat_search" placeholder="Search category…" oninput="filterWalletCats()" style="margin-bottom:6px;" autocomplete="off">
+          <select id="wal_category" onchange="document.getElementById('wal_cat_other_field').classList.toggle('hidden', this.value !== 'OTHERS')"></select></div>
+        <div class="field"><label>Cost Fund (product)</label>
+          <select id="wal_fund" onchange="document.getElementById('wal_fund_other').classList.toggle('hidden', this.value !== '__OTHERS__')"></select>
+          <input type="text" id="wal_fund_other" class="hidden" placeholder="Type cost fund" style="margin-top:6px;"></div>
+      </div>
+      <div class="field hidden" id="wal_cat_other_field"><label>Specify Category</label><input type="text" id="wal_cat_other"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Description</label><input type="text" id="wal_desc" placeholder="What was it for?"></div>
+      <div class="field"><label>Method</label><select id="wal_method"></select></div>
+    </div>
+    <div class="field"><label>Notes (optional)</label><textarea id="wal_notes" rows="2"></textarea></div>
+    <div class="field"><label>+ Attach Files / Photos (optional, more than one OK)</label>
+      <input type="file" id="wal_files" multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" onchange="addWalletFiles(event)">
+      <div id="wal_files_list"></div></div>
+    <div class="calc-box" id="wal_preview"></div>
+    <div id="wal_error" class="auth-err"></div>
+    <div class="modal-actions">
+      <button class="btn" id="walletSaveBtn" onclick="saveWallet()">Save</button>
+      <button class="btn secondary" onclick="closeModal('walletModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Reject request modal -->
 <div class="modal-overlay" id="rejectModal">
   <div class="modal" style="max-width:480px;">

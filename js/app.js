@@ -264,6 +264,7 @@ const NAV = [
   {id:'requests', label:'Requests', icon:ICONS.reimbursements, writer:true},
   {id:'users', label:'Users & Access', icon:ICONS.users, admin:true},
   {id:'mine', label:'Dashboard', icon:ICONS.dashboard, emp:true},
+  {id:'wallet', label:'Advance Wallet', icon:ICONS.funds, any:true},
   {id:'settings', label:'Settings', icon:ICONS.accounts, any:true},
 ];
 let state = { currentTab: 'dashboard' };
@@ -283,6 +284,7 @@ function render(){
   else if (t === 'users' && isAdmin()){ c.innerHTML = renderUsersShell(); loadUsersTab(); }
   else if (t === 'requests') c.innerHTML = renderRequests();
   else if (t === 'mine') c.innerHTML = renderMine();
+  else if (t === 'wallet') c.innerHTML = renderWallet();
   else if (t === 'settings'){ c.innerHTML = renderSettings(); applyAvatar(); }
   postRender();
 }
@@ -992,7 +994,7 @@ function showExpenseDetail(id){
    The same report body is used on screen, in the HTML download
    and in the PDF, so all three always show identical numbers.
    --------------------------------------------------------- */
-let summaryState = { mode:'month', ym:null, from:'', to:'' };
+let summaryState = { mode:'month', ym:null, from:'', to:'', kind:'books' };
 
 function summaryRange(){
   if (summaryState.mode === 'range' && summaryState.from && summaryState.to){
@@ -1005,11 +1007,12 @@ function renderSummary(){
   const months = availableMonths();
   const ym = summaryState.ym || period.ym;
   const pr = summaryRange();
-  const r = filterReport(computePeriod(pr.from, pr.to, pr.label));
+  const r = summaryState.kind === 'wallet' ? walletReport(pr) : filterReport(computePeriod(pr.from, pr.to, pr.label));
   return `
     <h1>Financial Summary</h1>
     <p class="subtitle">Pick a month or a custom date range. Every card and table row below is clickable — the same links work in the downloaded PDF.</p>
     <div class="card noprint">
+      ${summaryKindBar()}
       <div class="row" style="margin-bottom:14px;gap:18px;">
         <label class="check-line"><input type="radio" name="summary_mode" value="month" ${summaryState.mode==='month'?'checked':''} onchange="summaryState.mode='month';render()"> Month Wise</label>
         <label class="check-line"><input type="radio" name="summary_mode" value="range" ${summaryState.mode==='range'?'checked':''} onchange="summaryState.mode='range';render()"> Custom Date Range</label>
@@ -1036,7 +1039,7 @@ function renderSummary(){
           <button class="btn sm outline" onclick="downloadSummaryHtml()">⬇ Download HTML</button>
         </div>
       </div>
-      <div class="rpt">${reportBody(r)}</div>
+      <div class="rpt">${r.isWallet ? walletReportBody(r) : reportBody(r)}</div>
     </div>`}`;
 }
 function applySummaryRange(){
@@ -1172,10 +1175,10 @@ function buildReportDocument(r){
     @page{size:A4;margin:12mm;}
     @media print{ body{margin:0;max-width:none;padding:0;} .rpt section{padding-top:14px;} }
     ${REPORT_CSS}
-  </style></head><body><div class="rpt">${reportBody(r)}</div></body></html>`;
+  </style></head><body><div class="rpt">${r.isWallet ? walletReportBody(r) : reportBody(r)}</div></body></html>`;
 }
-function reportFileName(r){ return `NidusLab-Financial-Summary-${r.label.replace(/[^a-z0-9]+/gi,'_')}`; }
-function currentSummaryReport(){ const pr = summaryRange(); return filterReport(computePeriod(pr.from, pr.to, pr.label)); }
+function reportFileName(r){ return `NidusLab-${r.isWallet ? 'Advance-Wallet' : 'Financial'}-Summary-${r.label.replace(/[^a-z0-9]+/gi,'_')}`; }
+function currentSummaryReport(){ const pr = summaryRange(); return summaryState.kind === 'wallet' ? walletReport(pr) : filterReport(computePeriod(pr.from, pr.to, pr.label)); }
 
 async function downloadSummaryHtml(){
   const r = currentSummaryReport();
@@ -1454,6 +1457,7 @@ async function reloadData(force){
   const [emp, exp, pay, fund, cf, mem] = await Promise.all([fetchRows('fin_employees'), fetchRows('fin_expenses'), fetchRows('fin_expense_payments'), canWrite() ? fetchRows('fin_funds') : Promise.resolve([]), fetchRows('fin_cost_funds'), sb.from('fin_profiles').select('id,username,full_name,role').neq('role', 'PENDING')]);
   members = (mem.data || []).map(m => ({ id:m.id, name:m.full_name || m.username, role:m.role })).sort((a, b) => a.name.localeCompare(b.name));
   const nd = buildData(emp, exp, pay, fund, cf);
+  nd.wallet = await fetchWallet();
   const s = snapshotOf(nd);
   if (!force && data && s.sig === snap.sig) return false;
   if (data && !force){ // keep already-resolved signed URLs / local previews for unchanged photos
@@ -1483,6 +1487,7 @@ function snapshotOf(d){
   ['exp','pay','fund'].forEach(k => { [...s[k].entries()].sort((a, b) => a[0] < b[0] ? -1 : 1).forEach(([id, v]) => parts.push(k + id + v.json)); });
   parts.push('emp' + [...s.emp].sort().join('|'));
   parts.push('cf' + [...s.cf].sort().join('|'));
+  parts.push('w' + JSON.stringify((d.wallet || []).map(w => [w.id, w.updatedAt, w.amount, w.type, w.date])));
   s.sig = parts.join('\n');
   return s;
 }
@@ -1569,7 +1574,7 @@ let rtChannel = null, rtTimer = null;
 function startRealtime(){
   if (rtChannel) return;
   rtChannel = sb.channel('fin-live');
-  ['fin_expenses','fin_expense_payments','fin_funds','fin_employees','fin_profiles','fin_cost_funds'].forEach(t => rtChannel.on('postgres_changes', { event:'*', schema:'public', table:t }, () => scheduleRefresh()));
+  ['fin_expenses','fin_expense_payments','fin_funds','fin_employees','fin_profiles','fin_cost_funds','fin_wallet'].forEach(t => rtChannel.on('postgres_changes', { event:'*', schema:'public', table:t }, () => scheduleRefresh()));
   rtChannel.subscribe(st => { if (!pushing) setSync(st === 'SUBSCRIBED' ? 'live' : (st === 'CLOSED' || st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') ? 'offline' : 'live'); });
   setInterval(() => { if (data){ attachSignedUrls(allExp(data)); attachPaymentUrls(allExp(data)); } }, 45 * 60 * 1000);
 }
@@ -1682,6 +1687,25 @@ async function attachPaymentUrls(list){
 }
 function payAttachLinks(p){
   return (p.attachments || []).filter(a => a.url).map(a => `<a href="${a.url}" target="_blank" rel="noopener" title="${esc(a.name || 'file')}">📎 ${esc((a.name || 'file').slice(0, 24))}</a>`).join('<br>');
+}
+
+/* ---------- Advance wallet (money given to a person to spend) ---------- */
+async function fetchWallet(){
+  const out = [];
+  for (let from = 0; ; from += 1000){
+    const { data: rows, error } = await sb.from('fin_wallet').select('*').order('date', { ascending:true }).order('created_at', { ascending:true }).range(from, from + 999);
+    if (error){ console.warn('wallet', error.message); return out; }
+    rows.forEach(r => out.push({ id:r.id, ownerId:r.owner_id, ownerName:r.owner_name || '', type:r.type, date:r.date, amount:num(r.amount), source:r.source || '', category:r.category || '',
+      costFund:r.cost_fund || '', description:r.description || '', notes:r.notes || '', method:r.method || 'CASH', createdByName:r.created_by_name || '', createdBy:r.created_by,
+      files:(r.files || []).map(a => ({ path:a.path, name:a.name || null, mime:a.mime || null })), createdAt:Date.parse(r.created_at) || 0, updatedAt:r.updated_at || '' }));
+    if (rows.length < 1000) break;
+  }
+  const atts = []; out.forEach(w => w.files.forEach(a => atts.push(a)));
+  if (atts.length){
+    const { data: signed } = await sb.storage.from(BUCKET).createSignedUrls([...new Set(atts.map(a => a.path))], 3600);
+    const m = new Map((signed || []).map(s => [s.path, s.signedUrl])); atts.forEach(a => { a.url = m.get(a.path) || null; });
+  }
+  return out;
 }
 
 /* =========================================================
@@ -1894,6 +1918,7 @@ function renderMine(){
       ${kpiCard({ label:'Received', value:got, cls:'positive', icon:KPI_SVG.check, sub:'Already paid back to you' })}
       ${kpiCard({ label:'Approved Cost', value:total, cls:'negative', sub:`${appr.length} approved expense(s)` })}
       ${kpiCard({ label:'Pending Requests', value:pendAmt, cls:'info', icon:KPI_SVG.layers, sub:`${pend.length} waiting` })}
+      ${kpiCard({ label:'Advance Wallet Balance', value:walletBalance(me.id), cls:'positive', icon:KPI_SVG.wallet, sub:'Money given to you · tap to open', onclick:"switchTab('wallet')" })}
     </div>
     <div class="card" style="padding:0;overflow-x:auto;"><table><thead><tr><th>Date</th><th>Cost Fund</th><th>Category</th><th>Description</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
@@ -2176,3 +2201,225 @@ function previewExpensePhoto(ev){
 }
 function removeExpensePhoto(){ window._expPhotoFile = null; window._expPhotoKeep = null; renderExpFiles(); }
 function removeExpFile(kind, i){ (kind === 'keep' ? window._expFilesKeep : window._expFilesNew).splice(i, 1); renderExpFiles(); }
+
+/* =========================================================
+   Advance Wallet: money handed to a person + what they spent from it
+   ========================================================= */
+let walletState = { person:null };
+const W = () => (data && data.wallet) || [];
+function walletPeople(){
+  const m = new Map();
+  if (me) m.set(me.id, me.name);
+  if (canWrite()){ members.forEach(x => m.set(x.id, x.name)); W().forEach(w => { if (!m.has(w.ownerId)) m.set(w.ownerId, w.ownerName || 'Unknown'); }); }
+  return [...m.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+}
+function walletBalance(ownerId, upTo){ return round2(sumBy(W().filter(w => w.ownerId === ownerId && (!upTo || w.date <= upTo)), w => w.type === 'IN' ? w.amount : -w.amount)); }
+function canEditWallet(w){ return canWrite() || w.ownerId === me.id; }
+function setWalletPerson(id){ walletState.person = id; animNext = false; render(); }
+function renderWallet(){
+  const people = walletPeople();
+  if (!walletState.person || !people.some(p => p.id === walletState.person)) walletState.person = me.id;
+  const pid = walletState.person, pname = (people.find(p => p.id === pid) || {}).name || me.name;
+  const pr = periodRange();
+  const mine = W().filter(w => w.ownerId === pid);
+  const inR = w => w.date >= pr.from && w.date <= pr.to;
+  const list = mine.filter(inR).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.createdAt - b.createdAt);
+  const opening = pr.all ? 0 : walletBalance(pid, addDays(pr.from, -1));
+  const rin = sumBy(list.filter(w => w.type === 'IN'), w => w.amount), rout = sumBy(list.filter(w => w.type === 'OUT'), w => w.amount);
+  const closing = round2(opening + rin - rout);
+  let bal = opening;
+  const rows = list.map(w => { bal = round2(bal + (w.type === 'IN' ? w.amount : -w.amount)); return { w, bal }; }).reverse();
+  const fund = {}; list.filter(w => w.type === 'OUT').forEach(w => { const k = w.costFund || 'Unassigned'; fund[k] = (fund[k] || 0) + w.amount; });
+  const fundKeys = Object.keys(fund).sort((a, b) => fund[b] - fund[a]);
+  const body = rows.length ? rows.map(({ w, bal }) => `<tr>
+      <td style="white-space:nowrap;">${formatDate(w.date)}</td>
+      <td>${w.type === 'IN' ? '<span class="badge-status badge-reimbursed">Money In</span>' : '<span class="badge-status badge-pending">Spent</span>'}</td>
+      <td style="max-width:260px;">${w.type === 'IN' ? `From <b>${esc(w.source || '—')}</b>` : `${w.costFund ? `<span class="tag">${esc(w.costFund)}</span> ` : ''}${esc(w.category)}`}<div>${esc(w.description || '')}</div>${w.notes ? `<div class="muted" style="font-size:11.5px;">${esc(w.notes)}</div>` : ''}${w.files.length ? `<div style="font-size:12px;margin-top:3px;">${w.files.filter(a => a.url).map(a => `<a href="${a.url}" target="_blank" rel="noopener">📎 ${esc((a.name || 'file').slice(0, 26))}</a>`).join(' ')}</div>` : ''}</td>
+      <td class="num green">${w.type === 'IN' ? formatBDT(w.amount) : ''}</td>
+      <td class="num red">${w.type === 'OUT' ? formatBDT(w.amount) : ''}</td>
+      <td class="num"><b>${formatBDT(bal)}</b></td>
+      <td>${canEditWallet(w) ? `<div class="row" style="gap:6px;flex-wrap:nowrap;"><button class="btn sm outline" onclick="openWalletModal('${w.type}','${w.id}')">Edit</button><button class="btn sm danger" onclick="deleteWallet('${w.id}')">Delete</button></div>` : ''}</td></tr>`).join('')
+    : `<tr><td colspan="7" class="empty">No wallet entries for ${esc(pr.label)}.</td></tr>`;
+  return `
+    <div class="page-head">
+      <div><h1>Advance Wallet</h1><p class="subtitle" style="margin-bottom:0;">Money given to ${esc(pname)} to spend (e.g. 5,000 from the CTO), and every taka spent from it. Separate from reimbursement requests. Showing: <b>${esc(pr.label)}</b></p></div>
+      <div class="actions">${periodPicker()}</div>
+    </div>
+    <div class="card filter-bar" style="justify-content:space-between;">
+      ${people.length > 1 ? `<div class="field" style="margin:0;"><label>Person</label><select onchange="setWalletPerson(this.value)">${people.map(p => `<option value="${p.id}" ${p.id === pid ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>` : `<div><b>${esc(pname)}</b></div>`}
+      <div class="row" style="gap:8px;"><button class="btn success" onclick="openWalletModal('IN')">+ Money Received</button><button class="btn" onclick="openWalletModal('OUT')">+ Expense from Wallet</button></div>
+    </div>
+    <div class="kpi-grid">
+      ${kpiCard({ label:'Opening Balance', value:opening, icon:KPI_SVG.lock, sub:'Left from before' })}
+      ${kpiCard({ label:'Money Received', value:rin, cls:'positive', icon:KPI_SVG.inflow, sub:`${list.filter(w => w.type === 'IN').length} time(s)` })}
+      ${kpiCard({ label:'Spent', value:rout, cls:'negative', icon:KPI_SVG.outflow, sub:`${list.filter(w => w.type === 'OUT').length} expense(s)` })}
+      ${kpiCard({ label:'Balance in Hand', value:closing, cls:closing < 0 ? 'negative' : 'info', icon:KPI_SVG.wallet, sub:pr.all ? 'All time' : 'At end of ' + esc(pr.label) })}
+    </div>
+    ${fundKeys.length ? `<div class="card" style="margin-bottom:18px;"><div style="font-weight:700;margin-bottom:8px;">Spent by Cost Fund</div><div class="chips">${fundKeys.map(k => `<span class="fund-pill"><b>${esc(k)}</b> ${formatBDT(fund[k])}</span>`).join('')}</div></div>` : ''}
+    <div class="card" style="padding:0;overflow-x:auto;"><table>
+      <thead><tr><th>Date</th><th>Type</th><th>Details</th><th class="num">Money In</th><th class="num">Spent</th><th class="num">Balance</th><th></th></tr></thead>
+      <tbody>${body}${list.length ? `<tr class="total-row"><td colspan="3">Total — ${esc(pr.label)}</td><td class="num">${formatBDT(rin)}</td><td class="num">${formatBDT(rout)}</td><td class="num">${formatBDT(closing)}</td><td></td></tr>` : ''}</tbody>
+    </table></div>`;
+}
+
+/* ----- wallet add / edit ----- */
+let walletEdit = { id:null, type:'OUT', keep:[], add:[] };
+function openWalletModal(type, id){
+  const w = id ? W().find(x => x.id === id) : null;
+  walletEdit = { id: w ? w.id : null, type, keep: w ? w.files.map(a => ({ ...a })) : [], add: [] };
+  $('walletModalTitle').textContent = (w ? 'Edit ' : '') + (type === 'IN' ? 'Money Received' : 'Expense from Wallet');
+  $('wal_in_fields').classList.toggle('hidden', type !== 'IN');
+  $('wal_out_fields').classList.toggle('hidden', type !== 'OUT');
+  $('wal_date').min = DATA_START; $('wal_date').value = w ? w.date : (todayStr() < DATA_START ? DATA_START : todayStr());
+  $('wal_amount').value = w ? w.amount : '';
+  $('wal_source').value = w ? w.source : '';
+  $('wal_desc').value = w ? w.description : '';
+  $('wal_notes').value = w ? w.notes : '';
+  $('wal_method').innerHTML = methodOptions(w ? w.method : 'CASH');
+  $('wal_cat_search').value = '';
+  $('wal_category').innerHTML = categoryOptionsHtml(EXPENSE_CATEGORIES);
+  const cat = w ? w.category : EXPENSE_CATEGORIES[0];
+  if (w && w.type === 'OUT' && !EXPENSE_CATEGORIES.includes(cat)){ $('wal_category').value = 'OTHERS'; $('wal_cat_other').value = cat; } else { $('wal_category').value = cat; $('wal_cat_other').value = ''; }
+  $('wal_cat_other_field').classList.toggle('hidden', $('wal_category').value !== 'OTHERS');
+  const funds = data.costFunds || [];
+  $('wal_fund').innerHTML = '<option value="">— choose —</option>' + funds.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('') + '<option value="__OTHERS__">Others (type)</option>';
+  const cf = w ? w.costFund : '';
+  if (cf && !funds.includes(cf)){ $('wal_fund').value = '__OTHERS__'; $('wal_fund_other').value = cf; } else { $('wal_fund').value = cf; $('wal_fund_other').value = ''; }
+  $('wal_fund_other').classList.toggle('hidden', $('wal_fund').value !== '__OTHERS__');
+  $('wal_error').textContent = ''; $('wal_files').value = '';
+  renderWalletFiles(); updateWalletPreview();
+  openModal('walletModal');
+}
+function filterWalletCats(){
+  const q = $('wal_cat_search').value.trim().toLowerCase(), sel = $('wal_category'), cur = sel.value;
+  const list = q ? EXPENSE_CATEGORIES.filter(c => c.toLowerCase().includes(q)) : EXPENSE_CATEGORIES;
+  sel.innerHTML = categoryOptionsHtml(list); sel.value = list.includes(cur) ? cur : (list[0] || 'OTHERS');
+  $('wal_cat_other_field').classList.toggle('hidden', sel.value !== 'OTHERS');
+}
+function addWalletFiles(ev){
+  const fs = [...(ev.target.files || [])]; ev.target.value = '';
+  if (fs.some(x => x.size > 10 * 1024 * 1024)){ alert('Each file must be under 10 MB.'); return; }
+  walletEdit.add.push(...fs); renderWalletFiles();
+}
+function renderWalletFiles(){
+  const items = walletEdit.keep.map((a, i) => `<div class="file-chip">📎 ${a.url ? `<a href="${a.url}" target="_blank" rel="noopener">${esc(a.name || 'file')}</a>` : esc(a.name || 'file')} <a href="#" style="color:var(--red);margin-left:auto;" onclick="walletEdit.keep.splice(${i},1);renderWalletFiles();return false;">✕ Remove</a></div>`)
+    .concat(walletEdit.add.map((a, i) => `<div class="file-chip">📎 ${esc(a.name)} <span class="muted">(new)</span> <a href="#" style="color:var(--red);margin-left:auto;" onclick="walletEdit.add.splice(${i},1);renderWalletFiles();return false;">✕ Remove</a></div>`));
+  $('wal_files_list').innerHTML = items.join('');
+}
+function walletOwnerId(){ return walletState.person || me.id; }
+function updateWalletPreview(){
+  const amt = num($('wal_amount').value), box = $('wal_preview');
+  const old = walletEdit.id ? W().find(x => x.id === walletEdit.id) : null;
+  const owner = old ? old.ownerId : walletOwnerId();
+  const bal = round2(walletBalance(owner) - (old ? (old.type === 'IN' ? old.amount : -old.amount) : 0));
+  if (!amt){ box.innerHTML = `<span class="muted">Balance in hand now: <b>${formatBDT(bal)}</b></span>`; return; }
+  const after = round2(bal + (walletEdit.type === 'IN' ? amt : -amt));
+  box.innerHTML = `Balance: ${formatBDT(bal)} → <b class="${after < 0 ? 'red' : ''}">${formatBDT(after)}</b>` + (after < 0 ? `<div class="warn-box">Not enough money in the wallet. Short by <b>${formatBDT(-after)}</b>. Spend only ${formatBDT(Math.max(0, bal))} here and send the rest as a reimbursement request (own pocket).</div>` : '');
+}
+async function saveWallet(){
+  const err = $('wal_error'); err.textContent = '';
+  const type = walletEdit.type, date = $('wal_date').value, amount = round2(num($('wal_amount').value));
+  const description = $('wal_desc').value.trim(), notes = $('wal_notes').value.trim(), method = $('wal_method').value;
+  let source = '', category = '', costFund = '';
+  if (!date || amount <= 0){ err.textContent = 'Enter a date and an amount above 0.'; return; }
+  if (date < DATA_START){ err.textContent = 'Date must be on or after ' + formatDate(DATA_START) + '.'; return; }
+  if (type === 'IN'){ source = $('wal_source').value.trim(); if (!source){ err.textContent = 'Who gave the money? (e.g. CTO)'; return; } }
+  else {
+    category = $('wal_category').value; if (category === 'OTHERS') category = $('wal_cat_other').value.trim();
+    costFund = $('wal_fund').value === '__OTHERS__' ? $('wal_fund_other').value.trim() : $('wal_fund').value;
+    if (!category){ err.textContent = 'Choose a category.'; return; }
+    if (!costFund){ err.textContent = 'Choose a Cost Fund.'; return; }
+    if (!description){ err.textContent = 'Description is required.'; return; }
+  }
+  const old = walletEdit.id ? W().find(x => x.id === walletEdit.id) : null;
+  const owner = old ? old.ownerId : walletOwnerId();
+  if (type === 'OUT'){
+    const bal = round2(walletBalance(owner) - (old ? -old.amount : 0));
+    if (amount > bal){ err.textContent = `Not enough in the wallet (balance ${formatBDT(bal)}). Short by ${formatBDT(round2(amount - bal))}. Send the extra as a reimbursement request.`; return; }
+  }
+  const btn = $('walletSaveBtn'); setBusy(btn, true, 'Saving…');
+  try {
+    const id = old ? old.id : uid();
+    const files = walletEdit.keep.map(a => ({ path:a.path, name:a.name, mime:a.mime }));
+    for (const fl of walletEdit.add){
+      const path = `wallet/${id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safeName(fl.name)}`;
+      chk(await sb.storage.from(BUCKET).upload(path, fl, { contentType: fl.type || 'application/octet-stream', upsert: false }));
+      files.push({ path, name: fl.name, mime: fl.type || null });
+    }
+    const row = { id, owner_id: owner, type, date, amount, source, category, cost_fund: costFund, description, notes, method, files };
+    chk(old ? await sb.from('fin_wallet').update(row).eq('id', id) : await sb.from('fin_wallet').insert(row));
+    const removed = old ? old.files.filter(a => !files.some(b => b.path === a.path)).map(a => a.path) : [];
+    if (removed.length) sb.storage.from(BUCKET).remove(removed).catch(() => {});
+    closeModal('walletModal'); toast(type === 'IN' ? 'Money added to the wallet.' : 'Wallet expense saved.');
+    await reloadData(true); animNext = false; render();
+  } catch (e){ err.textContent = 'Could not save: ' + (e.message || e); }
+  finally { setBusy(btn, false); }
+}
+async function deleteWallet(id){
+  const w = W().find(x => x.id === id); if (!w) return;
+  if (!confirm(`Delete this ${w.type === 'IN' ? 'money received' : 'wallet expense'} entry of ${formatBDT(w.amount)}? This cannot be undone.`)) return;
+  const { error } = await sb.from('fin_wallet').delete().eq('id', id);
+  if (error){ toast('Could not delete: ' + error.message, 'err'); return; }
+  if (w.files.length) sb.storage.from(BUCKET).remove(w.files.map(a => a.path)).catch(() => {});
+  toast('Deleted.'); await reloadData(true); animNext = false; render();
+}
+
+/* ----- Advance Wallet report (Financial Summary → Advance Wallets) ----- */
+function walletReport(pr){
+  const all = W();
+  const inR = w => w.date >= pr.from && w.date <= pr.to;
+  const prev = addDays(pr.from, -1);
+  let list = all.filter(inR);
+  const r = { isWallet:true, label: pr.label, from: pr.from, to: pr.to };
+  r.personOptions = [...new Set(list.map(w => w.ownerName || 'Unknown'))].sort((a, b) => a.localeCompare(b));
+  r.fundOptions = [...new Set(list.filter(w => w.type === 'OUT').map(w => w.costFund || 'Unassigned'))].sort((a, b) => a.localeCompare(b));
+  r.catOptions = [...new Set(list.filter(w => w.type === 'OUT').map(w => w.category))].sort((a, b) => a.localeCompare(b));
+  if (sumFilter.person && !r.personOptions.includes(sumFilter.person)) sumFilter.person = '';
+  if (sumFilter.fund && !r.fundOptions.includes(sumFilter.fund)) sumFilter.fund = '';
+  if (sumFilter.cat && !r.catOptions.includes(sumFilter.cat)) sumFilter.cat = '';
+  const pOk = w => !sumFilter.person || (w.ownerName || 'Unknown') === sumFilter.person;
+  const xOk = w => w.type === 'IN' ? !(sumFilter.fund || sumFilter.cat) : ((!sumFilter.fund || (w.costFund || 'Unassigned') === sumFilter.fund) && (!sumFilter.cat || w.category === sumFilter.cat));
+  list = list.filter(w => pOk(w) && xOk(w));
+  r.filterNote = [sumFilter.person && ('Person: ' + sumFilter.person), sumFilter.fund && ('Cost Fund: ' + sumFilter.fund), sumFilter.cat && ('Category: ' + sumFilter.cat)].filter(Boolean).join(' · ');
+  const people = [...new Set(all.filter(pOk).map(w => w.ownerName || 'Unknown'))];
+  r.byPerson = people.map(n => {
+    const ws = all.filter(w => (w.ownerName || 'Unknown') === n);
+    const open = round2(sumBy(ws.filter(w => w.date <= prev), w => w.type === 'IN' ? w.amount : -w.amount));
+    const rin = sumBy(ws.filter(inR).filter(w => w.type === 'IN'), w => w.amount), rout = sumBy(ws.filter(inR).filter(w => w.type === 'OUT'), w => w.amount);
+    return { name:n, open, rin, rout, close: round2(open + rin - rout) };
+  }).filter(x => x.open || x.rin || x.rout).sort((a, b) => a.name.localeCompare(b.name));
+  r.opening = sumBy(r.byPerson, x => x.open); r.received = sumBy(list.filter(w => w.type === 'IN'), w => w.amount);
+  r.spent = sumBy(list.filter(w => w.type === 'OUT'), w => w.amount); r.closing = sumBy(r.byPerson, x => x.close);
+  const fund = {}; list.filter(w => w.type === 'OUT').forEach(w => { const k = w.costFund || 'Unassigned'; fund[k] = (fund[k] || 0) + w.amount; });
+  r.byFund = Object.keys(fund).map(k => ({ name:k, total:fund[k] })).sort((a, b) => b.total - a.total);
+  r.entries = list.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.createdAt - b.createdAt);
+  return r;
+}
+function walletReportBody(r){
+  const B = n => formatBDT(n);
+  const logo = typeof REPORT_LOGO !== 'undefined' ? REPORT_LOGO : 'assets/logo-navy-sm.png';
+  return `
+    <div class="hdr" style="display:flex;gap:14px;align-items:center;"><img src="${logo}" alt="NidusLab" style="width:46px;height:46px;">
+      <div><h1 style="margin:0;">NidusLab — Advance Wallet Summary</h1><div class="mut">Period: <b>${esc(r.label)}</b>${r.filterNote ? ' · ' + esc(r.filterNote) : ''} · Generated: ${new Date().toLocaleString('en-GB')}</div></div></div>
+    <section><h2>1. Overview</h2><div class="kpis">
+      <div class="k"><div class="l">Opening Balance</div><div class="v">${B(r.opening)}</div><div class="s">With people at start</div></div>
+      <div class="k pos"><div class="l">Money Given</div><div class="v">${B(r.received)}</div><div class="s">Received into wallets</div></div>
+      <div class="k neg"><div class="l">Spent</div><div class="v">${B(r.spent)}</div><div class="s">From wallets</div></div>
+      <div class="k"><div class="l">Closing Balance</div><div class="v">${B(r.closing)}</div><div class="s">Still with people</div></div>
+    </div><p class="mut" style="font-size:12px;">Advance wallet money is tracked separately from company cash, expenses and reimbursement requests.</p></section>
+    <section><h2>2. By Person</h2><div class="tw"><table><thead><tr><th>Person</th><th class="r">Opening</th><th class="r">Received</th><th class="r">Spent</th><th class="r">Closing</th></tr></thead><tbody>
+      ${r.byPerson.length ? r.byPerson.map(x => `<tr><td><b>${esc(x.name)}</b></td><td class="r">${B(x.open)}</td><td class="r g">${B(x.rin)}</td><td class="r rd">${B(x.rout)}</td><td class="r"><b>${B(x.close)}</b></td></tr>`).join('') + `<tr class="tot"><td>Total</td><td class="r">${B(r.opening)}</td><td class="r">${B(sumBy(r.byPerson, x => x.rin))}</td><td class="r">${B(sumBy(r.byPerson, x => x.rout))}</td><td class="r">${B(r.closing)}</td></tr>` : '<tr><td colspan="5" class="mut">No wallet activity.</td></tr>'}
+    </tbody></table></div></section>
+    <section><h2>3. Spent by Cost Fund (product)</h2><div class="tw"><table><thead><tr><th>Cost Fund</th><th class="r">Spent</th></tr></thead><tbody>
+      ${r.byFund.length ? r.byFund.map(x => `<tr><td>${esc(x.name)}</td><td class="r"><b>${B(x.total)}</b></td></tr>`).join('') : '<tr><td colspan="2" class="mut">No wallet expenses.</td></tr>'}
+    </tbody></table></div></section>
+    <section><h2>4. Wallet Register</h2><div class="tw"><table><thead><tr><th>Date</th><th>Person</th><th>Type</th><th>Details</th><th class="r">In</th><th class="r">Spent</th></tr></thead><tbody>
+      ${r.entries.length ? r.entries.map(w => `<tr><td>${formatDate(w.date)}</td><td>${esc(w.ownerName || '—')}</td><td>${w.type === 'IN' ? 'Money in' : 'Spent'}</td><td>${w.type === 'IN' ? 'From ' + esc(w.source || '—') : esc((w.costFund ? w.costFund + ' · ' : '') + w.category)}${w.description ? `<div class="mut" style="font-size:11px;">${esc(w.description)}</div>` : ''}</td><td class="r g">${w.type === 'IN' ? B(w.amount) : ''}</td><td class="r rd">${w.type === 'OUT' ? B(w.amount) : ''}</td></tr>`).join('') : '<tr><td colspan="6" class="mut">No entries.</td></tr>'}
+    </tbody></table></div></section>`;
+}
+function summaryKindBar(){
+  const k = summaryState.kind || 'books';
+  return `<div class="row" style="margin-bottom:14px;gap:8px;">
+    <button class="chip-btn ${k === 'books' ? 'on' : ''}" onclick="summaryState.kind='books';animNext=true;render()">Company Books &amp; Requests</button>
+    <button class="chip-btn ${k === 'wallet' ? 'on' : ''}" onclick="summaryState.kind='wallet';animNext=true;render()">Advance Wallets</button></div>`;
+}

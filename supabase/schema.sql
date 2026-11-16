@@ -629,3 +629,37 @@ create policy fin_wallet_update on public.fin_wallet for update to authenticated
   with check (public.fin_is_super() or (public.fin_can_read() and owner_id = auth.uid()));
 create policy fin_wallet_delete on public.fin_wallet for delete to authenticated
   using (public.fin_is_super() or (public.fin_can_read() and owner_id = auth.uid()));
+-- Wallet money source: OFFICE (company gave it) or EMPLOYEE (own money; company owes it back).
+alter table public.fin_wallet add column if not exists funded_by text not null default 'OFFICE';
+alter table public.fin_wallet drop constraint if exists fin_wallet_funded_chk;
+alter table public.fin_wallet add constraint fin_wallet_funded_chk check (funded_by in ('OFFICE','EMPLOYEE'));
+alter table public.fin_wallet add column if not exists repaid_at date;
+alter table public.fin_wallet add column if not exists repaid_by_name text;
+alter table public.fin_wallet add column if not exists repaid_note text;
+
+-- Only the Super Admin can mark own money as repaid.
+create or replace function public.fin_wallet_stamp() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare nm text;
+begin
+  select coalesce(nullif(btrim(full_name), ''), username) into new.owner_name from public.fin_profiles where id = new.owner_id;
+  if tg_op = 'INSERT' then
+    select coalesce(nullif(btrim(full_name), ''), username) into new.created_by_name from public.fin_profiles where id = coalesce(new.created_by, auth.uid());
+    if not public.fin_is_super() then new.repaid_at := null; new.repaid_note := null; end if;
+    new.repaid_by_name := null;
+  else
+    new.created_by := old.created_by; new.created_by_name := old.created_by_name; new.created_at := old.created_at;
+    if not public.fin_is_super() then
+      new.repaid_at := old.repaid_at; new.repaid_note := old.repaid_note; new.repaid_by_name := old.repaid_by_name;
+    elsif new.repaid_at is distinct from old.repaid_at then
+      select coalesce(nullif(btrim(full_name), ''), username) into nm from public.fin_profiles where id = auth.uid();
+      new.repaid_by_name := case when new.repaid_at is null then null else coalesce(nm, 'Unknown') end;
+    else
+      new.repaid_by_name := old.repaid_by_name;
+    end if;
+  end if;
+  if new.type <> 'IN' or new.funded_by <> 'EMPLOYEE' then new.repaid_at := null; new.repaid_note := null; new.repaid_by_name := null; end if;
+  new.updated_at := now();
+  return new;
+end $$;
+notify pgrst, 'reload schema';

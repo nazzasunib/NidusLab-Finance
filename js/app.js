@@ -463,7 +463,7 @@ function renderReimbursements(){
   const rows = data.expenses.filter(e => e.paidBy === 'EMPLOYEE')
     .map(e => ({ e, carried: e.date < pr.from && employeeDue(e, prev) > 0, inPeriod: e.date >= pr.from && e.date <= pr.to }))
     .filter(x => x.inPeriod || x.carried)
-    .sort((a,b) => byDateAsc(a.e,b.e));
+    .sort((a,b) => byDateDesc(a.e,b.e)); // latest first
 
   return `
     <div class="page-head">

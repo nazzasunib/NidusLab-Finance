@@ -2250,11 +2250,11 @@ function renderWallet(){
       <div class="row" style="gap:8px;"><button class="btn success" onclick="openWalletModal('IN')">+ Money Received</button><button class="btn" onclick="openWalletModal('OUT')">+ Expense from Wallet</button></div>
     </div>
     <div class="kpi-grid">
-      ${kpiCard({ label:'Opening Balance', value:opening, icon:KPI_SVG.lock, sub:'Left from before' })}
-      ${kpiCard({ label:'Money Received', value:rin, cls:'positive', icon:KPI_SVG.inflow, sub:`${list.filter(w => w.type === 'IN').length} time(s)` })}
-      ${kpiCard({ label:'Spent', value:rout, cls:'negative', icon:KPI_SVG.outflow, sub: routOwn ? `${formatBDT(rout - routOwn)} from wallet · ${formatBDT(routOwn)} own money` : `${list.filter(w => w.type === 'OUT').length} expense(s)` })}
-      ${kpiCard({ label:'Company Owes (own money)', value:walletOwed(pid), cls:'warning', icon:KPI_SVG.clock, sub:'Your own money put in, not paid back yet' })}
-      ${kpiCard({ label:'Balance in Hand', value:closing, cls:closing < 0 ? 'negative' : 'info', icon:KPI_SVG.wallet, sub:pr.all ? 'All time' : 'At end of ' + esc(pr.label) })}
+      ${kpiCard({ label:'Opening Balance', value:opening, onclick:"walletCardDetail('opening')", icon:KPI_SVG.lock, sub:'Left from before' })}
+      ${kpiCard({ label:'Money Received', value:rin, onclick:"walletCardDetail('in')", cls:'positive', icon:KPI_SVG.inflow, sub:`${list.filter(w => w.type === 'IN').length} time(s)` })}
+      ${kpiCard({ label:'Spent', value:rout, onclick:"walletCardDetail('out')", cls:'negative', icon:KPI_SVG.outflow, sub: routOwn ? `${formatBDT(rout - routOwn)} from wallet · ${formatBDT(routOwn)} own money` : `${list.filter(w => w.type === 'OUT').length} expense(s)` })}
+      ${kpiCard({ label:'Company Owes (own money)', value:walletOwed(pid), onclick:"walletCardDetail('owed')", cls:'warning', icon:KPI_SVG.clock, sub:'Your own money put in, not paid back yet' })}
+      ${kpiCard({ label:'Balance in Hand', value:closing, onclick:"walletCardDetail('balance')", cls:closing < 0 ? 'negative' : 'info', icon:KPI_SVG.wallet, sub:pr.all ? 'All time' : 'At end of ' + esc(pr.label) })}
     </div>
     ${fundKeys.length ? `<div class="card" style="margin-bottom:18px;"><div style="font-weight:700;margin-bottom:8px;">Spent by Cost Fund</div><div class="chips">${fundKeys.map(k => `<span class="fund-pill"><b>${esc(k)}</b> ${formatBDT(fund[k])}</span>`).join('')}</div></div>` : ''}
     <div class="card" style="padding:0;overflow-x:auto;"><table>
@@ -2512,15 +2512,104 @@ function setWalletFunded(v){
   $('wal_funded_hint').innerHTML = v === 'EMPLOYEE' ? 'Own money put into the wallet. The company <b>owes it back</b> until it is marked repaid (by you after you get it back, or by the Super Admin).'
     : v === 'OTHER' ? 'Write who gave the money.' : 'Money from the office / company.';
 }
-async function markWalletRepaid(id){
-  const w = W().find(x => x.id === id); if (!w) return;
-  const d = prompt(`Mark ${formatBDT(w.amount)} (own money of ${w.ownerName}) as paid back.\nRepaid on date (YYYY-MM-DD):`, todayStr());
-  if (!d) return;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)){ alert('Use the date format YYYY-MM-DD.'); return; }
-  const note = prompt('Note (optional, e.g. bKash / cash):', '') || '';
-  const { error } = await sb.from('fin_wallet').update({ repaid_at: d, repaid_note: note }).eq('id', id);
-  if (error){ toast('Could not save: ' + error.message, 'err'); return; }
-  toast('Marked as repaid.'); await reloadData(true); animNext = false; render();
+function markWalletRepaid(id){ openRepaidForm([id]); }
+
+/* ----- clickable wallet cards: details + repay ----- */
+function walletCtx(){
+  const pid = walletState.person || me.id, pr = periodRange();
+  const mine = W().filter(w => w.ownerId === pid);
+  const inR = w => w.date >= pr.from && w.date <= pr.to;
+  const name = (walletPeople().find(p => p.id === pid) || {}).name || me.name;
+  return { pid, pr, mine, inR, name };
+}
+function walletLine(w){
+  return `<tr><td style="white-space:nowrap;">${formatDate(w.date)}</td>
+    <td>${w.type === 'IN' ? (w.fundedBy === 'EMPLOYEE' ? 'Own money in' : w.fundedBy === 'OTHER' ? 'From ' + esc(w.source || '—') : 'From Office') : (isOwnOut(w) ? 'Spent (own money)' : 'Spent (wallet)')}
+      ${w.type === 'OUT' ? `<div class="muted" style="font-size:11.5px;">${w.costFund ? esc(w.costFund) + ' · ' : ''}${esc(w.category)}</div>` : ''}</td>
+    <td>${esc(w.description || '—')}${w.notes ? `<div class="muted" style="font-size:11.5px;white-space:pre-wrap;">${esc(w.notes)}</div>` : ''}${w.files.filter(a => a.url).length ? `<div style="font-size:12px;">${w.files.filter(a => a.url).map(a => `<a href="${a.url}" target="_blank" rel="noopener">📎 ${esc((a.name || 'file').slice(0, 24))}</a>`).join(' ')}</div>` : ''}</td>
+    <td class="num ${w.type === 'IN' ? 'green' : 'red'}"><b>${formatBDT(w.amount)}</b></td></tr>`;
+}
+function walletTable(list, empty){
+  return `<table><thead><tr><th>Date</th><th>Type</th><th>Details</th><th class="num">Amount</th></tr></thead><tbody>${list.length ? list.map(walletLine).join('') + `<tr class="total-row"><td colspan="3">Total</td><td class="num">${formatBDT(sumBy(list, w => w.amount))}</td></tr>` : `<tr><td colspan="4" class="empty">${empty}</td></tr>`}</tbody></table>`;
+}
+function walletCardDetail(kind){
+  const { pid, pr, mine, inR, name } = walletCtx();
+  const byDate = (a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.createdAt - b.createdAt;
+  let title = '', intro = '', body = '';
+  if (kind === 'opening'){
+    const before = mine.filter(w => w.date < pr.from).sort(byDate);
+    const v = pr.all ? 0 : walletBalance(pid, addDays(pr.from, -1));
+    title = 'Opening Balance — ' + formatBDT(v);
+    intro = pr.all ? 'All time starts at ৳0.' : `Money left in ${esc(name)}'s wallet before ${formatDate(pr.from)} = money in − spent from wallet (own-money spending is not counted).`;
+    body = walletTable(before, 'No entries before this period.');
+  } else if (kind === 'in'){
+    const l = mine.filter(inR).filter(w => w.type === 'IN').sort(byDate);
+    title = 'Money Received — ' + formatBDT(sumBy(l, w => w.amount));
+    const s = k => formatBDT(sumBy(l.filter(w => w.fundedBy === k), w => w.amount));
+    intro = `From Office ${s('OFFICE')} · From Others ${s('OTHER')} · Own money ${s('EMPLOYEE')} (${esc(pr.label)})`;
+    body = walletTable(l, 'No money received in this period.');
+  } else if (kind === 'out'){
+    const l = mine.filter(inR).filter(w => w.type === 'OUT').sort(byDate);
+    const own = sumBy(l.filter(isOwnOut), w => w.amount);
+    title = 'Spent — ' + formatBDT(sumBy(l, w => w.amount));
+    intro = `${formatBDT(sumBy(l, w => w.amount) - own)} from the wallet · ${formatBDT(own)} with own money (${esc(pr.label)})`;
+    body = walletTable(l, 'Nothing spent in this period.');
+  } else if (kind === 'owed'){ openRepaidForm([]); return; }
+  else if (kind === 'balance'){
+    const op = pr.all ? 0 : walletBalance(pid, addDays(pr.from, -1));
+    const l = mine.filter(inR);
+    const rin = sumBy(l.filter(w => w.type === 'IN'), w => w.amount), rw = sumBy(l.filter(w => w.type === 'OUT' && !isOwnOut(w)), w => w.amount);
+    title = 'Balance in Hand — ' + formatBDT(round2(op + rin - rw));
+    intro = 'How the balance is worked out:';
+    body = `<table><tbody>
+      <tr><td>Opening balance</td><td class="num">${formatBDT(op)}</td></tr>
+      <tr><td>+ Money received</td><td class="num green">+ ${formatBDT(rin)}</td></tr>
+      <tr><td>− Spent from the wallet</td><td class="num red">− ${formatBDT(rw)}</td></tr>
+      <tr class="total-row"><td>Balance in hand (${esc(pr.label)})</td><td class="num">${formatBDT(round2(op + rin - rw))}</td></tr>
+      <tr><td class="muted" colspan="2">Spending with own money does not reduce the wallet; it shows under Company Owes.</td></tr></tbody></table>`;
+  }
+  $('detailContent').innerHTML = `<h2 style="margin-bottom:4px;">${title}</h2><p class="muted" style="margin-top:0;">${intro}</p><div style="overflow-x:auto;">${body}</div>
+    <div class="modal-actions"><button class="btn secondary" onclick="closeModal('detailModal')">Close</button></div>`;
+  openModal('detailModal');
+}
+function openRepaidForm(ids){
+  const { pid, name } = walletCtx();
+  const target = ids.length ? W().find(w => w.id === ids[0]) : null;
+  const owner = target ? target.ownerId : pid;
+  const owed = W().filter(w => w.ownerId === owner && w.fundedBy === 'EMPLOYEE' && !w.repaidAt).sort((a, b) => a.date < b.date ? -1 : 1);
+  const paid = W().filter(w => w.ownerId === owner && w.fundedBy === 'EMPLOYEE' && w.repaidAt).sort((a, b) => a.repaidAt < b.repaidAt ? 1 : -1).slice(0, 20);
+  const canRepay = isSuper() || owner === me.id;
+  const who = target ? (target.ownerName || name) : name;
+  $('detailContent').innerHTML = `<h2 style="margin-bottom:4px;">Company Owes — ${formatBDT(sumBy(owed, w => w.amount))}</h2>
+    <p class="muted" style="margin-top:0;">Own money of <b>${esc(who)}</b> not paid back yet. ${canRepay && owed.length ? 'Tick what was paid back, set the date and save.' : ''}</p>
+    <div style="overflow-x:auto;"><table><thead><tr>${canRepay ? '<th></th>' : ''}<th>Date</th><th>Type</th><th>Details</th><th class="num">Amount</th></tr></thead><tbody>
+    ${owed.length ? owed.map(w => `<tr>${canRepay ? `<td><input type="checkbox" class="rp-chk" value="${w.id}" ${!ids.length || ids.includes(w.id) ? 'checked' : ''} onchange="repaidTotal()"></td>` : ''}<td style="white-space:nowrap;">${formatDate(w.date)}</td><td>${w.type === 'IN' ? 'Own money in' : 'Spent (own money)'}</td><td>${esc(w.description || w.category || '—')}${w.notes ? `<div class="muted" style="font-size:11.5px;">${esc(w.notes)}</div>` : ''}</td><td class="num"><b>${formatBDT(w.amount)}</b></td></tr>`).join('')
+      : `<tr><td colspan="5" class="empty">Nothing owed. 🎉</td></tr>`}
+    </tbody></table></div>
+    ${canRepay && owed.length ? `<div class="field-row" style="margin-top:14px;">
+      <div class="field"><label>Repaid on</label><input type="date" id="rp_date" value="${todayStr()}"></div>
+      <div class="field"><label>Note (optional)</label><input type="text" id="rp_note" placeholder="e.g. bKash, cash, bank"></div></div>
+      <div class="calc-box" id="rp_total"></div><div id="rp_error" class="auth-err"></div>` : ''}
+    ${paid.length ? `<h3 style="margin-top:16px;">Already repaid</h3><div style="overflow-x:auto;"><table><tbody>${paid.map(w => `<tr><td>${formatDate(w.date)}</td><td>${esc(w.description || w.category || (w.type === 'IN' ? 'Own money in' : '—'))}</td><td class="num">${formatBDT(w.amount)}</td><td><span class="badge-status badge-reimbursed">Repaid ${formatDate(w.repaidAt)}</span>${w.repaidByName ? ` <span class="muted" style="font-size:11px;">by ${esc(w.repaidByName)}</span>` : ''}${w.repaidNote ? `<div class="muted" style="font-size:11px;">${esc(w.repaidNote)}</div>` : ''}</td></tr>`).join('')}</tbody></table></div>` : ''}
+    <div class="modal-actions">${canRepay && owed.length ? `<button class="btn success" id="rpBtn" onclick="confirmRepaid()">✓ Mark selected as repaid</button>` : ''}<button class="btn secondary" onclick="closeModal('detailModal')">Close</button></div>`;
+  openModal('detailModal'); repaidTotal();
+}
+function repaidTotal(){
+  const box = $('rp_total'); if (!box) return;
+  const ids = [...document.querySelectorAll('.rp-chk:checked')].map(c => c.value);
+  box.innerHTML = `Selected: <b>${ids.length}</b> item(s) · <b>${formatBDT(sumBy(W().filter(w => ids.includes(w.id)), w => w.amount))}</b>`;
+}
+async function confirmRepaid(){
+  const ids = [...document.querySelectorAll('.rp-chk:checked')].map(c => c.value);
+  const d = $('rp_date').value, note = $('rp_note').value.trim();
+  if (!ids.length){ $('rp_error').textContent = 'Tick at least one item.'; return; }
+  if (!d){ $('rp_error').textContent = 'Choose the repaid date.'; return; }
+  const btn = $('rpBtn'); setBusy(btn, true, 'Saving…');
+  const { error } = await sb.from('fin_wallet').update({ repaid_at: d, repaid_note: note }).in('id', ids);
+  setBusy(btn, false);
+  if (error){ $('rp_error').textContent = 'Could not save: ' + error.message; return; }
+  closeModal('detailModal'); toast(`Marked ${ids.length} item(s) as repaid.`);
+  await reloadData(true); animNext = false; render();
 }
 
 /* ----- wallet expense: paid from office (wallet) or the account holder's own money ----- */

@@ -171,8 +171,8 @@
     <div class="field-row">
       <div class="field">
         <label>Category</label>
-        <input type="search" id="exp_cat_search" placeholder="Search category… (e.g. recharge, ads, banner)" oninput="filterCategories()" style="margin-bottom:6px;" autocomplete="off">
         <select id="exp_category" onchange="onCategoryChange()"></select>
+        <input type="search" id="exp_cat_search" class="hidden" placeholder="Search category… (or type your own below)" oninput="filterCategories()" style="margin-top:6px;" autocomplete="off">
       </div>
       <div class="field" id="exp_method_field">
         <label>Payment Method</label>
@@ -320,8 +320,9 @@
       </div>
       <div class="field-row">
         <div class="field"><label>Category</label>
-          <input type="search" id="wal_cat_search" placeholder="Search category…" oninput="filterWalletCats()" style="margin-bottom:6px;" autocomplete="off">
-          <select id="wal_category" onchange="document.getElementById('wal_cat_other_field').classList.toggle('hidden', this.value !== 'OTHERS')"></select></div>
+          
+          <select id="wal_category" onchange="walletCatChanged()"></select>
+          <input type="search" id="wal_cat_search" class="hidden" placeholder="Search category… (or type your own below)" oninput="filterWalletCats()" style="margin-top:6px;" autocomplete="off"></div>
         <div class="field"><label>Cost Fund (product)</label>
           <select id="wal_fund" onchange="document.getElementById('wal_fund_other').classList.toggle('hidden', this.value !== '__OTHERS__')"></select>
           <input type="text" id="wal_fund_other" class="hidden" placeholder="Type cost fund" style="margin-top:6px;"></div>

@@ -642,10 +642,6 @@ function openEditExpense(id){
   applyRoleToExpenseModal();
   openModal('expenseModal');
 }
-function onCategoryChange(){
-  const v = document.getElementById('exp_category').value;
-  document.getElementById('exp_category_other_field').classList.toggle('hidden', v !== 'OTHERS');
-}
 function togglePaidBy(){
   const p = getPaidBy();
   document.getElementById('exp_employee_field').classList.toggle('hidden', p !== 'EMPLOYEE');
@@ -1998,7 +1994,7 @@ function filterCategories(){
   const sel = $('exp_category'), cur = sel.value;
   const list = q ? EXPENSE_CATEGORIES.filter(c => c.toLowerCase().includes(q)) : EXPENSE_CATEGORIES;
   sel.innerHTML = categoryOptionsHtml(list);
-  if (list.includes(cur)) sel.value = cur; else sel.value = list[0] || 'OTHERS';
+  sel.value = (cur === 'OTHERS' || !list.includes(cur)) ? 'OTHERS' : cur;
   onCategoryChange();
 }
 
@@ -2291,7 +2287,7 @@ function openWalletModal(type, id){
   $('wal_category').innerHTML = categoryOptionsHtml(EXPENSE_CATEGORIES);
   const cat = w ? w.category : EXPENSE_CATEGORIES[0];
   if (w && w.type === 'OUT' && !EXPENSE_CATEGORIES.includes(cat)){ $('wal_category').value = 'OTHERS'; $('wal_cat_other').value = cat; } else { $('wal_category').value = cat; $('wal_cat_other').value = ''; }
-  $('wal_cat_other_field').classList.toggle('hidden', $('wal_category').value !== 'OTHERS');
+  walletCatChanged();
   const funds = data.costFunds || [];
   $('wal_fund').innerHTML = '<option value="">— choose —</option>' + funds.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('') + '<option value="__OTHERS__">Others (type)</option>';
   const cf = w ? w.costFund : '';
@@ -2304,8 +2300,8 @@ function openWalletModal(type, id){
 function filterWalletCats(){
   const q = $('wal_cat_search').value.trim().toLowerCase(), sel = $('wal_category'), cur = sel.value;
   const list = q ? EXPENSE_CATEGORIES.filter(c => c.toLowerCase().includes(q)) : EXPENSE_CATEGORIES;
-  sel.innerHTML = categoryOptionsHtml(list); sel.value = list.includes(cur) ? cur : (list[0] || 'OTHERS');
-  $('wal_cat_other_field').classList.toggle('hidden', sel.value !== 'OTHERS');
+  sel.innerHTML = categoryOptionsHtml(list); sel.value = (cur === 'OTHERS' || !list.includes(cur)) ? 'OTHERS' : cur;
+  walletCatChanged(true);
 }
 function addWalletFiles(ev){
   const fs = [...(ev.target.files || [])]; ev.target.value = '';
@@ -2483,4 +2479,19 @@ function setWalletPaidFrom(v){
   const r = document.querySelector(`input[name="wal_paidfrom"][value="${v === 'EMPLOYEE' ? 'EMPLOYEE' : 'OFFICE'}"]`); if (r) r.checked = true;
   $('wal_paidfrom_hint').innerHTML = v === 'EMPLOYEE' ? 'Paid with own money: the wallet balance does not change and the company <b>owes it back</b>.' : 'Paid from the office money in this wallet.';
   updateWalletPreview();
+}
+
+/* ----- category search box shows only when "Others" is picked ----- */
+function walletCatChanged(keepSearch){
+  const o = $('wal_category').value === 'OTHERS';
+  $('wal_cat_other_field').classList.toggle('hidden', !o);
+  $('wal_cat_search').classList.toggle('hidden', !o);
+  if (!o && !keepSearch && $('wal_cat_search').value){ $('wal_cat_search').value = ''; const cur = $('wal_category').value; $('wal_category').innerHTML = categoryOptionsHtml(EXPENSE_CATEGORIES); $('wal_category').value = cur; }
+}
+function onCategoryChange(){
+  const o = $('exp_category').value === 'OTHERS';
+  $('exp_category_other_field').classList.toggle('hidden', !o);
+  const s = $('exp_cat_search'); if (!s) return;
+  s.classList.toggle('hidden', !o);
+  if (!o && s.value){ s.value = ''; const cur = $('exp_category').value; $('exp_category').innerHTML = categoryOptionsHtml(EXPENSE_CATEGORIES); $('exp_category').value = cur; }
 }

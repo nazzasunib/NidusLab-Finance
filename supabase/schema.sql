@@ -697,3 +697,5 @@ end $$;
 
 -- Own-money wallet expenses (OUT + EMPLOYEE) are also owed back and can be marked repaid.
 -- (fin_wallet_stamp: final check is now `if new.funded_by <> 'EMPLOYEE'` instead of type/funded_by.)
+
+insert into public.fin_cost_funds (name) values ('Office') on conflict (name) do nothing;

@@ -2235,7 +2235,7 @@ function renderWallet(){
   const body = rows.length ? rows.map(({ w, bal }) => `<tr>
       <td style="white-space:nowrap;">${formatDate(w.date)}</td>
       <td>${w.type === 'IN' ? '<span class="badge-status badge-reimbursed">Money In</span>' : '<span class="badge-status badge-pending">Spent</span>'}</td>
-      <td style="max-width:260px;">${w.type === 'IN' ? (w.fundedBy === 'EMPLOYEE' ? `<b>Own money</b> (${esc(w.ownerName || 'employee')}) ${w.repaidAt ? `<span class="badge-status badge-reimbursed">Repaid ${formatDate(w.repaidAt)}</span>${w.repaidByName ? ` <span class="muted" style="font-size:11px;">by ${esc(w.repaidByName)}</span>` : ''}` : '<span class="badge-status badge-pending">Company owes</span>'}${!w.repaidAt && isSuper() ? ` <button class="btn sm success" style="padding:2px 8px;" onclick="markWalletRepaid('${w.id}')">Mark repaid</button>` : ''}` : `From <b>${esc(w.source || '—')}</b> <span class="muted" style="font-size:11px;">(office)</span>`) : `${w.costFund ? `<span class="tag">${esc(w.costFund)}</span> ` : ''}${esc(w.category)}`}<div>${esc(w.description || '')}</div>${w.notes ? `<div class="muted" style="font-size:11.5px;">${esc(w.notes)}</div>` : ''}${w.files.length ? `<div style="font-size:12px;margin-top:3px;">${w.files.filter(a => a.url).map(a => `<a href="${a.url}" target="_blank" rel="noopener">📎 ${esc((a.name || 'file').slice(0, 26))}</a>`).join(' ')}</div>` : ''}</td>
+      <td style="max-width:260px;">${w.type === 'IN' ? (w.fundedBy === 'EMPLOYEE' ? `<b>Own money</b> (${esc(w.ownerName || 'employee')}) ${w.repaidAt ? `<span class="badge-status badge-reimbursed">Repaid ${formatDate(w.repaidAt)}</span>${w.repaidByName ? ` <span class="muted" style="font-size:11px;">by ${esc(w.repaidByName)}</span>` : ''}` : '<span class="badge-status badge-pending">Company owes</span>'}${!w.repaidAt && isSuper() ? ` <button class="btn sm success" style="padding:2px 8px;" onclick="markWalletRepaid('${w.id}')">Mark repaid</button>` : ''}` : (w.fundedBy === 'OTHER' ? `From <b>${esc(w.source || '—')}</b> <span class="muted" style="font-size:11px;">(others)</span>` : 'From <b>Office</b>')) : `${w.costFund ? `<span class="tag">${esc(w.costFund)}</span> ` : ''}${esc(w.category)}`}<div>${esc(w.description || '')}</div>${w.notes ? `<div class="muted" style="font-size:11.5px;">${esc(w.notes)}</div>` : ''}${w.files.length ? `<div style="font-size:12px;margin-top:3px;">${w.files.filter(a => a.url).map(a => `<a href="${a.url}" target="_blank" rel="noopener">📎 ${esc((a.name || 'file').slice(0, 26))}</a>`).join(' ')}</div>` : ''}</td>
       <td class="num green">${w.type === 'IN' ? formatBDT(w.amount) : ''}</td>
       <td class="num red">${w.type === 'OUT' ? formatBDT(w.amount) : ''}</td>
       <td class="num"><b>${formatBDT(bal)}</b></td>
@@ -2275,6 +2275,9 @@ function openWalletModal(type, id){
   $('wal_date').min = DATA_START; $('wal_date').value = w ? w.date : (todayStr() < DATA_START ? DATA_START : todayStr());
   $('wal_amount').value = w ? w.amount : '';
   $('wal_source').value = w ? w.source : '';
+  const ownerNm = w ? w.ownerName : ((walletPeople().find(p => p.id === walletOwnerId()) || {}).name || me.name);
+  $('wal_funded_emp_name').textContent = ownerNm;
+  $('wal_source').value = w && w.fundedBy === 'OTHER' ? w.source : '';
   setWalletFunded(w ? w.fundedBy : 'OFFICE');
   $('wal_desc').value = w ? w.description : '';
   $('wal_notes').value = w ? w.notes : '';
@@ -2327,7 +2330,10 @@ async function saveWallet(){
   if (!date || amount <= 0){ err.textContent = 'Enter a date and an amount above 0.'; return; }
   if (date < DATA_START){ err.textContent = 'Date must be on or after ' + formatDate(DATA_START) + '.'; return; }
   const fundedBy = type === 'IN' ? walletFunded() : 'OFFICE';
-  if (type === 'IN'){ source = $('wal_source').value.trim(); if (fundedBy === 'EMPLOYEE' && !source) source = 'Own money'; if (!source){ err.textContent = 'Who gave the money? (e.g. CTO)'; return; } }
+  if (type === 'IN'){
+    if (fundedBy === 'OTHER'){ source = $('wal_source').value.trim(); if (!source){ err.textContent = 'Write who gave the money (Others).'; return; } }
+    else source = fundedBy === 'EMPLOYEE' ? 'Own money' : 'Office';
+  }
   else {
     category = $('wal_category').value; if (category === 'OTHERS') category = $('wal_cat_other').value.trim();
     costFund = $('wal_fund').value === '__OTHERS__' ? $('wal_fund_other').value.trim() : $('wal_fund').value;
@@ -2393,11 +2399,12 @@ function walletReport(pr, onlyName){
     const rin = sumBy(ws.filter(inR).filter(w => w.type === 'IN'), w => w.amount), rout = sumBy(ws.filter(inR).filter(w => w.type === 'OUT'), w => w.amount);
     const own = sumBy(ws.filter(inR).filter(w => w.type === 'IN' && w.fundedBy === 'EMPLOYEE'), w => w.amount);
     const owed = round2(sumBy(ws.filter(w => w.type === 'IN' && w.fundedBy === 'EMPLOYEE' && w.date <= pr.to && (!w.repaidAt || w.repaidAt > pr.to)), w => w.amount));
-    return { name:n, open, rin, office: round2(rin - own), own, rout, close: round2(open + rin - rout), owed };
+    const oth = sumBy(ws.filter(inR).filter(w => w.type === 'IN' && w.fundedBy === 'OTHER'), w => w.amount);
+    return { name:n, open, rin, office: round2(rin - own - oth), other: oth, own, rout, close: round2(open + rin - rout), owed };
   }).filter(x => x.open || x.rin || x.rout || x.owed).sort((a, b) => a.name.localeCompare(b.name));
   r.opening = sumBy(r.byPerson, x => x.open); r.received = sumBy(list.filter(w => w.type === 'IN'), w => w.amount);
   r.spent = sumBy(list.filter(w => w.type === 'OUT'), w => w.amount); r.closing = sumBy(r.byPerson, x => x.close);
-  r.fromOffice = sumBy(r.byPerson, x => x.office); r.ownMoney = sumBy(r.byPerson, x => x.own); r.owed = sumBy(r.byPerson, x => x.owed);
+  r.fromOffice = sumBy(r.byPerson, x => x.office); r.fromOther = sumBy(r.byPerson, x => x.other); r.ownMoney = sumBy(r.byPerson, x => x.own); r.owed = sumBy(r.byPerson, x => x.owed);
   const fund = {}; list.filter(w => w.type === 'OUT').forEach(w => { const k = w.costFund || 'Unassigned'; fund[k] = (fund[k] || 0) + w.amount; });
   r.byFund = Object.keys(fund).map(k => ({ name:k, total:fund[k] })).sort((a, b) => b.total - a.total);
   r.entries = list.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.createdAt - b.createdAt);
@@ -2415,17 +2422,18 @@ function walletReportBody(r){
       <div class="k neg"><div class="l">Spent</div><div class="v">${B(r.spent)}</div><div class="s">From wallets</div></div>
       <div class="k"><div class="l">Closing Balance</div><div class="v">${B(r.closing)}</div><div class="s">Still with people</div></div>
       <div class="k"><div class="l">From Office</div><div class="v">${B(r.fromOffice)}</div><div class="s">Company money given</div></div>
+      <div class="k"><div class="l">From Others</div><div class="v">${B(r.fromOther)}</div><div class="s">e.g. CTO, client</div></div>
       <div class="k"><div class="l">Own Money Put In</div><div class="v">${B(r.ownMoney)}</div><div class="s">People's own money</div></div>
       <div class="k neg"><div class="l">Company Owes</div><div class="v">${B(r.owed)}</div><div class="s">Own money not repaid (as of ${formatDate(r.to)})</div></div>
     </div><p class="mut" style="font-size:12px;">Advance wallet money is tracked separately from company cash, expenses and reimbursement requests.</p></section>
-    <section><h2>2. By Person</h2><div class="tw"><table><thead><tr><th>Person</th><th class="r">Opening</th><th class="r">From Office</th><th class="r">Own Money</th><th class="r">Spent</th><th class="r">Closing</th><th class="r">Company Owes</th></tr></thead><tbody>
-      ${r.byPerson.length ? r.byPerson.map(x => `<tr><td><b>${esc(x.name)}</b></td><td class="r">${B(x.open)}</td><td class="r g">${B(x.office)}</td><td class="r g">${B(x.own)}</td><td class="r rd">${B(x.rout)}</td><td class="r"><b>${B(x.close)}</b></td><td class="r am">${B(x.owed)}</td></tr>`).join('') + `<tr class="tot"><td>Total</td><td class="r">${B(r.opening)}</td><td class="r">${B(r.fromOffice)}</td><td class="r">${B(r.ownMoney)}</td><td class="r">${B(sumBy(r.byPerson, x => x.rout))}</td><td class="r">${B(r.closing)}</td><td class="r">${B(r.owed)}</td></tr>` : '<tr><td colspan="7" class="mut">No wallet activity.</td></tr>'}
+    <section><h2>2. By Person</h2><div class="tw"><table><thead><tr><th>Person</th><th class="r">Opening</th><th class="r">From Office</th><th class="r">From Others</th><th class="r">Own Money</th><th class="r">Spent</th><th class="r">Closing</th><th class="r">Company Owes</th></tr></thead><tbody>
+      ${r.byPerson.length ? r.byPerson.map(x => `<tr><td><b>${esc(x.name)}</b></td><td class="r">${B(x.open)}</td><td class="r g">${B(x.office)}</td><td class="r g">${B(x.other)}</td><td class="r g">${B(x.own)}</td><td class="r rd">${B(x.rout)}</td><td class="r"><b>${B(x.close)}</b></td><td class="r am">${B(x.owed)}</td></tr>`).join('') + `<tr class="tot"><td>Total</td><td class="r">${B(r.opening)}</td><td class="r">${B(r.fromOffice)}</td><td class="r">${B(r.fromOther)}</td><td class="r">${B(r.ownMoney)}</td><td class="r">${B(sumBy(r.byPerson, x => x.rout))}</td><td class="r">${B(r.closing)}</td><td class="r">${B(r.owed)}</td></tr>` : '<tr><td colspan="8" class="mut">No wallet activity.</td></tr>'}
     </tbody></table></div></section>
     <section><h2>3. Spent by Cost Fund (product)</h2><div class="tw"><table><thead><tr><th>Cost Fund</th><th class="r">Spent</th></tr></thead><tbody>
       ${r.byFund.length ? r.byFund.map(x => `<tr><td>${esc(x.name)}</td><td class="r"><b>${B(x.total)}</b></td></tr>`).join('') : '<tr><td colspan="2" class="mut">No wallet expenses.</td></tr>'}
     </tbody></table></div></section>
     <section><h2>4. Wallet Register</h2><div class="tw"><table><thead><tr><th>Date</th><th>Person</th><th>Type</th><th>Details</th><th class="r">In</th><th class="r">Spent</th></tr></thead><tbody>
-      ${r.entries.length ? r.entries.map(w => `<tr><td>${formatDate(w.date)}</td><td>${esc(w.ownerName || '—')}</td><td>${w.type === 'IN' ? (w.fundedBy === 'EMPLOYEE' ? 'Own money in' : 'Money in (office)') : 'Spent'}</td><td>${w.type === 'IN' ? (w.fundedBy === 'EMPLOYEE' ? 'Own money · ' + (w.repaidAt ? 'repaid ' + formatDate(w.repaidAt) : 'company owes') : 'From ' + esc(w.source || '—')) : esc((w.costFund ? w.costFund + ' · ' : '') + w.category)}${w.description ? `<div class="mut" style="font-size:11px;">${esc(w.description)}</div>` : ''}</td><td class="r g">${w.type === 'IN' ? B(w.amount) : ''}</td><td class="r rd">${w.type === 'OUT' ? B(w.amount) : ''}</td></tr>`).join('') : '<tr><td colspan="6" class="mut">No entries.</td></tr>'}
+      ${r.entries.length ? r.entries.map(w => `<tr><td>${formatDate(w.date)}</td><td>${esc(w.ownerName || '—')}</td><td>${w.type === 'IN' ? (w.fundedBy === 'EMPLOYEE' ? 'Own money in' : w.fundedBy === 'OTHER' ? 'Money in (others)' : 'Money in (office)') : 'Spent'}</td><td>${w.type === 'IN' ? (w.fundedBy === 'EMPLOYEE' ? 'Own money · ' + (w.repaidAt ? 'repaid ' + formatDate(w.repaidAt) : 'company owes') : 'From ' + esc(w.source || '—')) : esc((w.costFund ? w.costFund + ' · ' : '') + w.category)}${w.description ? `<div class="mut" style="font-size:11px;">${esc(w.description)}</div>` : ''}</td><td class="r g">${w.type === 'IN' ? B(w.amount) : ''}</td><td class="r rd">${w.type === 'OUT' ? B(w.amount) : ''}</td></tr>`).join('') : '<tr><td colspan="6" class="mut">No entries.</td></tr>'}
     </tbody></table></div></section>`;
 }
 function walletPageReport(){
@@ -2445,10 +2453,11 @@ function summaryKindBar(){
 /* ----- wallet: office money vs employee's own money ----- */
 function walletFunded(){ const r = document.querySelector('input[name="wal_funded"]:checked'); return r ? r.value : 'OFFICE'; }
 function setWalletFunded(v){
-  const r = document.querySelector(`input[name="wal_funded"][value="${v === 'EMPLOYEE' ? 'EMPLOYEE' : 'OFFICE'}"]`); if (r) r.checked = true;
-  const emp = (v === 'EMPLOYEE');
-  $('wal_source_field').classList.toggle('hidden', emp);
-  $('wal_funded_hint').innerHTML = emp ? 'Your own money goes into the wallet to spend. The company <b>owes you</b> this amount until the Super Admin marks it repaid.' : 'Money handed over by the office / company (e.g. CTO).';
+  v = ['EMPLOYEE', 'OTHER'].includes(v) ? v : 'OFFICE';
+  const r = document.querySelector(`input[name="wal_funded"][value="${v}"]`); if (r) r.checked = true;
+  $('wal_source_field').classList.toggle('hidden', v !== 'OTHER');
+  $('wal_funded_hint').innerHTML = v === 'EMPLOYEE' ? 'Own money put into the wallet. The company <b>owes it back</b> until the Super Admin marks it repaid.'
+    : v === 'OTHER' ? 'Write who gave the money.' : 'Money from the office / company.';
 }
 async function markWalletRepaid(id){
   const w = W().find(x => x.id === id); if (!w) return;

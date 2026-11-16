@@ -663,3 +663,7 @@ begin
   return new;
 end $$;
 notify pgrst, 'reload schema';
+
+-- Wallet money source: OFFICE, EMPLOYEE (own money, company owes it back) or OTHER (written in source).
+alter table public.fin_wallet drop constraint if exists fin_wallet_funded_chk;
+alter table public.fin_wallet add constraint fin_wallet_funded_chk check (funded_by in ('OFFICE','EMPLOYEE','OTHER'));

@@ -302,12 +302,13 @@
     <div id="wal_in_fields">
       <div class="field"><label>Where did the money come from?</label>
         <div class="radio-group">
-          <label><input type="radio" name="wal_funded" value="OFFICE" checked onchange="setWalletFunded('OFFICE')"> Office / Company gave it</label>
-          <label><input type="radio" name="wal_funded" value="EMPLOYEE" onchange="setWalletFunded('EMPLOYEE')"> My own money (company pays me back later)</label>
+          <label><input type="radio" name="wal_funded" value="OFFICE" checked onchange="setWalletFunded('OFFICE')"> Office</label>
+          <label><input type="radio" name="wal_funded" value="EMPLOYEE" onchange="setWalletFunded('EMPLOYEE')"> <span id="wal_funded_emp_name">Own money</span> (own money)</label>
+          <label><input type="radio" name="wal_funded" value="OTHER" onchange="setWalletFunded('OTHER')"> Others</label>
         </div>
         <div class="hint" id="wal_funded_hint"></div>
       </div>
-      <div class="field" id="wal_source_field"><label>Received from <span style="color:var(--rose,#e5484d);">*</span></label><input type="text" id="wal_source" placeholder="e.g. CTO, Riad Hasan, Office"></div>
+      <div class="field" id="wal_source_field"><label>Who gave it? <span style="color:var(--rose,#e5484d);">*</span></label><input type="text" id="wal_source" placeholder="e.g. CTO, client, partner"></div>
     </div>
     <div id="wal_out_fields">
       <div class="field-row">

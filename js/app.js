@@ -1180,8 +1180,8 @@ function buildReportDocument(r){
 function reportFileName(r){ return `NidusLab-${r.isWallet ? 'Advance-Wallet' : 'Financial'}-Summary-${r.label.replace(/[^a-z0-9]+/gi,'_')}`; }
 function currentSummaryReport(){ const pr = summaryRange(); return summaryState.kind === 'wallet' ? walletReport(pr) : filterReport(computePeriod(pr.from, pr.to, pr.label)); }
 
-async function downloadSummaryHtml(){
-  const r = currentSummaryReport();
+async function downloadSummaryHtml(rr){
+  const r = (rr && rr.label) ? rr : currentSummaryReport();
   let html = buildReportDocument(r);
   const urls = [...new Set([...html.matchAll(/<img class="thumb" src="(https?:[^"]+)"/g)].map(m => m[1]))];
   for (const u of urls){ try { html = html.split(u).join(await toDataUri(u)); } catch (e){} }
@@ -1194,8 +1194,8 @@ async function downloadSummaryHtml(){
 }
 /** PDF: renders the report in a hidden frame and opens the print dialog → choose "Save as PDF".
  *  Chrome / Edge keep the internal links, so every card and category stays clickable in the PDF. */
-function downloadSummaryPdf(){
-  const r = currentSummaryReport();
+function downloadSummaryPdf(rr){
+  const r = (rr && rr.label) ? rr : currentSummaryReport();
   const old = document.getElementById('pdfFrame'); if (old) old.remove();
   const iframe = document.createElement('iframe');
   iframe.id = 'pdfFrame';
@@ -2210,11 +2210,11 @@ const W = () => (data && data.wallet) || [];
 function walletPeople(){
   const m = new Map();
   if (me) m.set(me.id, me.name);
-  if (canWrite()){ members.forEach(x => m.set(x.id, x.name)); W().forEach(w => { if (!m.has(w.ownerId)) m.set(w.ownerId, w.ownerName || 'Unknown'); }); }
+  if (isSuper()){ members.forEach(x => m.set(x.id, x.name)); W().forEach(w => { if (!m.has(w.ownerId)) m.set(w.ownerId, w.ownerName || 'Unknown'); }); }
   return [...m.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
 }
 function walletBalance(ownerId, upTo){ return round2(sumBy(W().filter(w => w.ownerId === ownerId && (!upTo || w.date <= upTo)), w => w.type === 'IN' ? w.amount : -w.amount)); }
-function canEditWallet(w){ return canWrite() || w.ownerId === me.id; }
+function canEditWallet(w){ return isSuper() || w.ownerId === me.id; }
 function setWalletPerson(id){ walletState.person = id; animNext = false; render(); }
 function renderWallet(){
   const people = walletPeople();
@@ -2243,7 +2243,7 @@ function renderWallet(){
   return `
     <div class="page-head">
       <div><h1>Advance Wallet</h1><p class="subtitle" style="margin-bottom:0;">Money given to ${esc(pname)} to spend (e.g. 5,000 from the CTO), and every taka spent from it. Separate from reimbursement requests. Showing: <b>${esc(pr.label)}</b></p></div>
-      <div class="actions">${periodPicker()}</div>
+      <div class="actions">${periodPicker()}<button class="btn sm" onclick="downloadSummaryPdf(walletPageReport())">⬇ Summary PDF</button><button class="btn sm outline" onclick="downloadSummaryHtml(walletPageReport())">⬇ HTML</button></div>
     </div>
     <div class="card filter-bar" style="justify-content:space-between;">
       ${people.length > 1 ? `<div class="field" style="margin:0;"><label>Person</label><select onchange="setWalletPerson(this.value)">${people.map(p => `<option value="${p.id}" ${p.id === pid ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>` : `<div><b>${esc(pname)}</b></div>`}
@@ -2365,7 +2365,8 @@ async function deleteWallet(id){
 }
 
 /* ----- Advance Wallet report (Financial Summary → Advance Wallets) ----- */
-function walletReport(pr){
+function walletReport(pr, onlyName){
+  const F = onlyName ? { person:onlyName, fund:'', cat:'' } : sumFilter;
   const all = W();
   const inR = w => w.date >= pr.from && w.date <= pr.to;
   const prev = addDays(pr.from, -1);
@@ -2374,13 +2375,13 @@ function walletReport(pr){
   r.personOptions = [...new Set(list.map(w => w.ownerName || 'Unknown'))].sort((a, b) => a.localeCompare(b));
   r.fundOptions = [...new Set(list.filter(w => w.type === 'OUT').map(w => w.costFund || 'Unassigned'))].sort((a, b) => a.localeCompare(b));
   r.catOptions = [...new Set(list.filter(w => w.type === 'OUT').map(w => w.category))].sort((a, b) => a.localeCompare(b));
-  if (sumFilter.person && !r.personOptions.includes(sumFilter.person)) sumFilter.person = '';
-  if (sumFilter.fund && !r.fundOptions.includes(sumFilter.fund)) sumFilter.fund = '';
-  if (sumFilter.cat && !r.catOptions.includes(sumFilter.cat)) sumFilter.cat = '';
-  const pOk = w => !sumFilter.person || (w.ownerName || 'Unknown') === sumFilter.person;
-  const xOk = w => w.type === 'IN' ? !(sumFilter.fund || sumFilter.cat) : ((!sumFilter.fund || (w.costFund || 'Unassigned') === sumFilter.fund) && (!sumFilter.cat || w.category === sumFilter.cat));
+  if (F.person && !r.personOptions.includes(F.person)) F.person = '';
+  if (F.fund && !r.fundOptions.includes(F.fund)) F.fund = '';
+  if (F.cat && !r.catOptions.includes(F.cat)) F.cat = '';
+  const pOk = w => !F.person || (w.ownerName || 'Unknown') === F.person;
+  const xOk = w => w.type === 'IN' ? !(F.fund || F.cat) : ((!F.fund || (w.costFund || 'Unassigned') === F.fund) && (!F.cat || w.category === F.cat));
   list = list.filter(w => pOk(w) && xOk(w));
-  r.filterNote = [sumFilter.person && ('Person: ' + sumFilter.person), sumFilter.fund && ('Cost Fund: ' + sumFilter.fund), sumFilter.cat && ('Category: ' + sumFilter.cat)].filter(Boolean).join(' · ');
+  r.filterNote = [F.person && ('Person: ' + F.person), F.fund && ('Cost Fund: ' + F.fund), F.cat && ('Category: ' + F.cat)].filter(Boolean).join(' · ');
   const people = [...new Set(all.filter(pOk).map(w => w.ownerName || 'Unknown'))];
   r.byPerson = people.map(n => {
     const ws = all.filter(w => (w.ownerName || 'Unknown') === n);
@@ -2417,7 +2418,14 @@ function walletReportBody(r){
       ${r.entries.length ? r.entries.map(w => `<tr><td>${formatDate(w.date)}</td><td>${esc(w.ownerName || '—')}</td><td>${w.type === 'IN' ? 'Money in' : 'Spent'}</td><td>${w.type === 'IN' ? 'From ' + esc(w.source || '—') : esc((w.costFund ? w.costFund + ' · ' : '') + w.category)}${w.description ? `<div class="mut" style="font-size:11px;">${esc(w.description)}</div>` : ''}</td><td class="r g">${w.type === 'IN' ? B(w.amount) : ''}</td><td class="r rd">${w.type === 'OUT' ? B(w.amount) : ''}</td></tr>`).join('') : '<tr><td colspan="6" class="mut">No entries.</td></tr>'}
     </tbody></table></div></section>`;
 }
+function walletPageReport(){
+  const people = walletPeople(), pid = walletState.person || me.id;
+  const name = (people.find(p => p.id === pid) || {}).name || me.name;
+  const owner = W().find(w => w.ownerId === pid);
+  return walletReport(periodRange(), owner ? (owner.ownerName || name) : name);
+}
 function summaryKindBar(){
+  if (!isSuper()){ summaryState.kind = 'books'; return ''; }
   const k = summaryState.kind || 'books';
   return `<div class="row" style="margin-bottom:14px;gap:8px;">
     <button class="chip-btn ${k === 'books' ? 'on' : ''}" onclick="summaryState.kind='books';animNext=true;render()">Company Books &amp; Requests</button>

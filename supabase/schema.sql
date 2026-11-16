@@ -614,3 +614,18 @@ do $$ begin
   end if;
 end $$;
 notify pgrst, 'reload schema';
+
+-- Advance wallets are private: only the owner and the Super Admin can see or change them.
+drop policy if exists fin_wallet_select on public.fin_wallet;
+drop policy if exists fin_wallet_insert on public.fin_wallet;
+drop policy if exists fin_wallet_update on public.fin_wallet;
+drop policy if exists fin_wallet_delete on public.fin_wallet;
+create policy fin_wallet_select on public.fin_wallet for select to authenticated
+  using (public.fin_is_super() or (public.fin_can_read() and owner_id = auth.uid()));
+create policy fin_wallet_insert on public.fin_wallet for insert to authenticated
+  with check (public.fin_is_super() or (public.fin_can_read() and owner_id = auth.uid()));
+create policy fin_wallet_update on public.fin_wallet for update to authenticated
+  using (public.fin_is_super() or (public.fin_can_read() and owner_id = auth.uid()))
+  with check (public.fin_is_super() or (public.fin_can_read() and owner_id = auth.uid()));
+create policy fin_wallet_delete on public.fin_wallet for delete to authenticated
+  using (public.fin_is_super() or (public.fin_can_read() and owner_id = auth.uid()));

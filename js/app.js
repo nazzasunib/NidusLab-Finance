@@ -1698,7 +1698,7 @@ async function fetchWallet(){
   }
   const atts = []; out.forEach(w => w.files.forEach(a => atts.push(a)));
   if (atts.length){
-    const { data: signed } = await sb.storage.from(BUCKET).createSignedUrls([...new Set(atts.map(a => a.path))], 3600);
+    const { data: signed } = await sb.storage.from(BUCKET).createSignedUrls([...new Set(atts.map(a => a.path))], 604800);
     const m = new Map((signed || []).map(s => [s.path, s.signedUrl])); atts.forEach(a => { a.url = m.get(a.path) || null; });
   }
   return out;
@@ -2416,28 +2416,78 @@ function walletReport(pr, onlyName){
 function walletReportBody(r){
   const B = n => formatBDT(n);
   const logo = typeof REPORT_LOGO !== 'undefined' ? REPORT_LOGO : 'assets/logo-navy-sm.png';
+  const back = `<a class="back" href="#w-top">↑ Back to Overview</a>`;
+  const people = [...new Set(r.entries.map(w => w.ownerName || 'Unknown'))].sort((a, b) => a.localeCompare(b));
+  const pid = n => 'wp-' + Math.max(0, people.indexOf(n));
+  const funds = r.byFund.map(x => x.name);
+  const fid = n => 'wf-' + Math.max(0, funds.indexOf(n));
+  const kind = w => w.type === 'IN'
+    ? (w.fundedBy === 'EMPLOYEE' ? 'Own money in' : w.fundedBy === 'OTHER' ? 'Money in (others)' : 'Money in (office)')
+    : (isOwnOut(w) ? 'Spent (own money)' : 'Spent (wallet)');
+  const owedTxt = w => w.fundedBy !== 'EMPLOYEE' ? '' : (w.repaidAt ? `<span class="g">Repaid ${formatDate(w.repaidAt)}${w.repaidByName ? ' by ' + esc(w.repaidByName) : ''}${w.repaidNote ? ' · ' + esc(w.repaidNote) : ''}</span>` : '<span class="am">Company owes</span>');
+  const files = w => (w.files || []).length ? `<div style="margin-top:4px;">${w.files.map(a => !a.url ? `<span class="mut">📎 ${esc(a.name || 'file')}</span>`
+      : isImgFile(a) ? `<a href="${a.url}" target="_blank" rel="noopener"><img class="thumb" src="${a.url}" alt="${esc(a.name || 'photo')}"></a>`
+      : `<a class="lnk" href="${a.url}" target="_blank" rel="noopener">${isPdfFile(a) ? '📄' : '📎'} ${esc(a.name || 'file')}</a>`).join(' ')}</div>` : '';
+  const details = w => `${w.type === 'IN' ? (w.fundedBy === 'OTHER' ? 'From <b>' + esc(w.source || '—') + '</b>' : w.fundedBy === 'EMPLOYEE' ? 'Own money of <b>' + esc(w.ownerName || '—') + '</b>' : 'From <b>Office</b>')
+      : `${w.costFund ? `<a class="lnk" href="#${fid(w.costFund || 'Unassigned')}">${esc(w.costFund)}</a> · ` : ''}${esc(w.category)}${isOwnOut(w) ? ' · paid by <b>' + esc(w.ownerName || '—') + '</b> (own money)' : ''}`}
+      ${w.description ? `<div>${esc(w.description)}</div>` : ''}
+      ${w.notes ? `<div class="mut" style="font-size:11px;white-space:pre-wrap;"><b>Note:</b> ${esc(w.notes)}</div>` : ''}
+      <div class="mut" style="font-size:11px;">${esc(METHODS[w.method] || w.method || '')}${w.createdByName ? ' · entered by ' + esc(w.createdByName) : ''} ${owedTxt(w)}</div>
+      ${files(w)}`;
+  const nFiles = sumBy(r.entries, w => (w.files || []).length);
+  const K = [
+    { l:'Opening Balance', v:r.opening, s:'With people at start', c:'', t:'w-person' },
+    { l:'Money Given', v:r.received, s:'Received into wallets', c:'pos', t:'w-register' },
+    { l:'Spent', v:r.spent, s:'From wallets & own money', c:'neg', t:'w-fund' },
+    { l:'Closing Balance', v:r.closing, s:'Still with people', c:'info', t:'w-person' },
+    { l:'From Office', v:r.fromOffice, s:'Company money given', c:'pos', t:'w-register' },
+    { l:'From Others', v:r.fromOther, s:'e.g. CTO, client', c:'pos', t:'w-register' },
+    { l:'Own Money Put In', v:r.ownMoney, s:"People's own money", c:'warn', t:'w-owed' },
+    { l:'Company Owes', v:r.owed, s:'Own money not repaid (as of ' + formatDate(r.to) + ')', c:'neg', t:'w-owed' },
+  ];
+  const owedList = r.entries.filter(w => w.fundedBy === 'EMPLOYEE');
   return `
-    <div class="hdr" style="display:flex;gap:14px;align-items:center;"><img src="${logo}" alt="NidusLab" style="width:46px;height:46px;">
-      <div><h1 style="margin:0;">NidusLab — Advance Wallet Summary</h1><div class="mut">Period: <b>${esc(r.label)}</b>${r.filterNote ? ' · ' + esc(r.filterNote) : ''} · Generated: ${new Date().toLocaleString('en-GB')}</div></div></div>
-    <section><h2>1. Overview</h2><div class="kpis">
-      <div class="k"><div class="l">Opening Balance</div><div class="v">${B(r.opening)}</div><div class="s">With people at start</div></div>
-      <div class="k pos"><div class="l">Money Given</div><div class="v">${B(r.received)}</div><div class="s">Received into wallets</div></div>
-      <div class="k neg"><div class="l">Spent</div><div class="v">${B(r.spent)}</div><div class="s">From wallets</div></div>
-      <div class="k"><div class="l">Closing Balance</div><div class="v">${B(r.closing)}</div><div class="s">Still with people</div></div>
-      <div class="k"><div class="l">From Office</div><div class="v">${B(r.fromOffice)}</div><div class="s">Company money given</div></div>
-      <div class="k"><div class="l">From Others</div><div class="v">${B(r.fromOther)}</div><div class="s">e.g. CTO, client</div></div>
-      <div class="k"><div class="l">Own Money Put In</div><div class="v">${B(r.ownMoney)}</div><div class="s">People's own money</div></div>
-      <div class="k neg"><div class="l">Company Owes</div><div class="v">${B(r.owed)}</div><div class="s">Own money not repaid (as of ${formatDate(r.to)})</div></div>
-    </div><p class="mut" style="font-size:12px;">Advance wallet money is tracked separately from company cash, expenses and reimbursement requests.</p></section>
-    <section><h2>2. By Person</h2><div class="tw"><table><thead><tr><th>Person</th><th class="r">Opening</th><th class="r">From Office</th><th class="r">From Others</th><th class="r">Own Money</th><th class="r">Spent</th><th class="r">Closing</th><th class="r">Company Owes</th></tr></thead><tbody>
-      ${r.byPerson.length ? r.byPerson.map(x => `<tr><td><b>${esc(x.name)}</b></td><td class="r">${B(x.open)}</td><td class="r g">${B(x.office)}</td><td class="r g">${B(x.other)}</td><td class="r g">${B(x.own)}</td><td class="r rd">${B(x.rout)}</td><td class="r"><b>${B(x.close)}</b></td><td class="r am">${B(x.owed)}</td></tr>`).join('') + `<tr class="tot"><td>Total</td><td class="r">${B(r.opening)}</td><td class="r">${B(r.fromOffice)}</td><td class="r">${B(r.fromOther)}</td><td class="r">${B(r.ownMoney)}</td><td class="r">${B(sumBy(r.byPerson, x => x.rout))}</td><td class="r">${B(r.closing)}</td><td class="r">${B(r.owed)}</td></tr>` : '<tr><td colspan="8" class="mut">No wallet activity.</td></tr>'}
-    </tbody></table></div></section>
-    <section><h2>3. Spent by Cost Fund (product)</h2><div class="tw"><table><thead><tr><th>Cost Fund</th><th class="r">Spent</th></tr></thead><tbody>
-      ${r.byFund.length ? r.byFund.map(x => `<tr><td>${esc(x.name)}</td><td class="r"><b>${B(x.total)}</b></td></tr>`).join('') : '<tr><td colspan="2" class="mut">No wallet expenses.</td></tr>'}
-    </tbody></table></div></section>
-    <section><h2>4. Wallet Register</h2><div class="tw"><table><thead><tr><th>Date</th><th>Person</th><th>Type</th><th>Details</th><th class="r">In</th><th class="r">Spent</th></tr></thead><tbody>
-      ${r.entries.length ? r.entries.map(w => `<tr><td>${formatDate(w.date)}</td><td>${esc(w.ownerName || '—')}</td><td>${w.type === 'IN' ? (w.fundedBy === 'EMPLOYEE' ? 'Own money in' : w.fundedBy === 'OTHER' ? 'Money in (others)' : 'Money in (office)') : (isOwnOut(w) ? 'Spent (own money' + (w.repaidAt ? ', repaid' : ', company owes') + ')' : 'Spent (wallet)')}</td><td>${w.type === 'IN' ? (w.fundedBy === 'EMPLOYEE' ? 'Own money · ' + (w.repaidAt ? 'repaid ' + formatDate(w.repaidAt) : 'company owes') : 'From ' + esc(w.source || '—')) : esc((w.costFund ? w.costFund + ' · ' : '') + w.category)}${w.description ? `<div class="mut" style="font-size:11px;">${esc(w.description)}</div>` : ''}</td><td class="r g">${w.type === 'IN' ? B(w.amount) : ''}</td><td class="r rd">${w.type === 'OUT' ? B(w.amount) : ''}</td></tr>`).join('') : '<tr><td colspan="6" class="mut">No entries.</td></tr>'}
-    </tbody></table></div></section>`;
+    <div id="w-top" class="rpt-head"><img src="${logo}" alt="NidusLab" style="width:46px;height:46px;">
+      <div><h1 class="rpt-title">NidusLab — Advance Wallet Summary</h1>
+      <div class="meta">Period: <b>${esc(r.label)}</b>${r.filterNote ? ' · ' + esc(r.filterNote) : ''} · Generated: ${new Date().toLocaleString('en-GB')}</div></div></div>
+    <section id="w-over" style="padding-top:12px;">
+      <h2>1. Overview <span class="hint-click">— click a card to jump to its details</span></h2>
+      <div class="kpis">${K.map(k => `<a class="k ${k.c}" href="#${k.t}"><div class="l">${k.l}</div><div class="v">${B(k.v)}</div><div class="s">${k.s}</div><div class="c">View details ▸</div></a>`).join('')}</div>
+      <div class="toc"><b style="margin-right:10px;">Contents:</b>
+        <a href="#w-person">2. By Person</a><a href="#w-fund">3. By Cost Fund</a><a href="#w-owed">4. Own Money &amp; Company Owes</a><a href="#w-register">5. Wallet Register (notes &amp; ${nFiles} attachment${nFiles === 1 ? '' : 's'})</a></div>
+      <p class="mut" style="font-size:12px;">Advance wallet money is tracked separately from company cash, expenses and reimbursement requests.</p>
+    </section>
+    <section id="w-person"><h2>2. By Person <span class="hint-click">— click a name to see that person's entries</span></h2><div class="tw"><table>
+      <thead><tr><th>Person</th><th class="r">Opening</th><th class="r">From Office</th><th class="r">From Others</th><th class="r">Own Money</th><th class="r">Spent</th><th class="r">Closing</th><th class="r">Company Owes</th></tr></thead><tbody>
+      ${r.byPerson.length ? r.byPerson.map(x => `<tr><td><a class="lnk" href="#${pid(x.name)}">▸ ${esc(x.name)}</a></td><td class="r">${B(x.open)}</td><td class="r g">${B(x.office)}</td><td class="r g">${B(x.other)}</td><td class="r g">${B(x.own)}</td><td class="r rd">${B(x.rout)}</td><td class="r"><b>${B(x.close)}</b></td><td class="r am">${B(x.owed)}</td></tr>`).join('')
+        + `<tr class="tot"><td>Total</td><td class="r">${B(r.opening)}</td><td class="r">${B(r.fromOffice)}</td><td class="r">${B(r.fromOther)}</td><td class="r">${B(r.ownMoney)}</td><td class="r">${B(sumBy(r.byPerson, x => x.rout))}</td><td class="r">${B(r.closing)}</td><td class="r">${B(r.owed)}</td></tr>` : '<tr><td colspan="8" class="mut">No wallet activity.</td></tr>'}
+      </tbody></table></div>${back}</section>
+    <section id="w-fund"><h2>3. Spent by Cost Fund (product) <span class="hint-click">— click a cost fund to see its expenses</span></h2><div class="tw"><table>
+      <thead><tr><th>Cost Fund</th><th class="r">#</th><th class="r">Spent</th></tr></thead><tbody>
+      ${r.byFund.length ? r.byFund.map(x => `<tr><td><a class="lnk" href="#${fid(x.name)}">▸ ${esc(x.name)}</a></td><td class="r">${r.entries.filter(w => w.type === 'OUT' && (w.costFund || 'Unassigned') === x.name).length}</td><td class="r"><b>${B(x.total)}</b></td></tr>`).join('') : '<tr><td colspan="3" class="mut">No wallet expenses.</td></tr>'}
+      </tbody></table></div>
+      ${r.byFund.map(x => `<h3 id="${fid(x.name)}">${esc(x.name)} — ${B(x.total)} <a class="back" style="margin:0 0 0 8px;font-weight:600;" href="#w-fund">↑ cost funds</a></h3>
+        <div class="tw"><table><thead><tr><th>Date</th><th>Person</th><th>Details</th><th class="r">Spent</th></tr></thead><tbody>
+        ${r.entries.filter(w => w.type === 'OUT' && (w.costFund || 'Unassigned') === x.name).map(w => `<tr><td>${formatDate(w.date)}</td><td>${esc(w.ownerName || '—')}</td><td>${details(w)}</td><td class="r rd">${B(w.amount)}</td></tr>`).join('')}
+        </tbody></table></div>`).join('')}
+      ${back}</section>
+    <section id="w-owed"><h2>4. Own Money &amp; Company Owes</h2><div class="tw"><table>
+      <thead><tr><th>Date</th><th>Person</th><th>Type</th><th>Details</th><th class="r">Amount</th></tr></thead><tbody>
+      ${owedList.length ? owedList.map(w => `<tr><td>${formatDate(w.date)}</td><td>${esc(w.ownerName || '—')}</td><td>${kind(w)}</td><td>${details(w)}</td><td class="r ${w.repaidAt ? 'g' : 'am'}">${B(w.amount)}</td></tr>`).join('') : '<tr><td colspan="5" class="mut">No own-money entries in this period.</td></tr>'}
+      </tbody></table></div>${back}</section>
+    <section id="w-register"><h2>5. Wallet Register <span class="hint-click">— every entry with notes and attachments, by person</span></h2>
+      ${people.length ? people.map(n => {
+        const ws = r.entries.filter(w => (w.ownerName || 'Unknown') === n);
+        const p = r.byPerson.find(x => x.name === n) || { open:0 };
+        let bal = p.open;
+        return `<h3 id="${pid(n)}">${esc(n)} <a class="back" style="margin:0 0 0 8px;font-weight:600;" href="#w-person">↑ people</a></h3>
+          <div class="tw"><table><thead><tr><th>Date</th><th>Type</th><th>Details, notes &amp; attachments</th><th class="r">In</th><th class="r">Spent</th><th class="r">Balance</th></tr></thead><tbody>
+          <tr><td>${formatDate(r.from)}</td><td class="mut" colspan="4">Opening balance</td><td class="r"><b>${B(p.open)}</b></td></tr>
+          ${ws.map(w => { bal = round2(bal + wDelta(w)); return `<tr><td style="white-space:nowrap;">${formatDate(w.date)}</td><td>${kind(w)}</td><td>${details(w)}</td><td class="r g">${w.type === 'IN' ? B(w.amount) : ''}</td><td class="r rd">${w.type === 'OUT' ? B(w.amount) : ''}</td><td class="r"><b>${B(bal)}</b></td></tr>`; }).join('')}
+          </tbody></table></div>`;
+      }).join('') : '<p class="mut">No entries.</p>'}
+      <p class="mut" style="font-size:11px;">Attachment links in a downloaded PDF stay valid for 7 days; download a fresh report for older links. Photos are embedded in the HTML download.</p>
+      ${back}</section>`;
 }
 function walletPageReport(){
   const people = walletPeople(), pid = walletState.person || me.id;

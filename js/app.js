@@ -2162,6 +2162,16 @@ function reportSplitHtml(r, B){
       ${r.filterNote ? `<p class="mut" style="font-size:12px;">Expense figures are filtered (${esc(r.filterNote)}). The cash flow and cash book below always show the whole company account.</p>` : ''}
       ${tbl('By Cost Fund (product)', r.byFund || [], 'Cost Fund')}
       ${tbl('By Person', r.byPerson || [], 'Person')}
+      ${(() => {
+        const sp = r.expenses.filter(e => /(^|\n)Split: /.test(e.notes || ''));
+        if (!sp.length) return '';
+        return `<h3>Split payments (cash in hand was short)</h3><div class="tw"><table>
+          <thead><tr><th>Date</th><th>Description</th><th>Paid by</th><th class="r">Amount</th><th>Status</th></tr></thead><tbody>
+          ${sp.map(e => `<tr><td>${formatDate(e.date)}</td><td>${esc(e.description || e.category)}<div class="mut" style="font-size:11px;">${esc(((e.notes || '').match(/Split: .*/) || [''])[0])}</div></td>
+            <td>${e.paidBy === 'COMPANY' ? esc(paidByName(e)) + ' (company)' : esc(employeeName(e)) + ' (own pocket)'}</td><td class="r"><b>${B(e.amount)}</b></td>
+            <td>${e.paidBy === 'COMPANY' ? '<span class="g">Paid</span>' : (dueOf(e, r.to) > 0 ? `<span class="am">Due ${B(dueOf(e, r.to))}</span>` : '<span class="g">Reimbursed</span>')}</td></tr>`).join('')}
+          </tbody></table></div>`;
+      })()}
     </section>`;
 }
 

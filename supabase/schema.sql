@@ -658,7 +658,7 @@ begin
       new.repaid_by_name := old.repaid_by_name;
     end if;
   end if;
-  if new.type <> 'IN' or new.funded_by <> 'EMPLOYEE' then new.repaid_at := null; new.repaid_note := null; new.repaid_by_name := null; end if;
+  if new.funded_by <> 'EMPLOYEE' then new.repaid_at := null; new.repaid_note := null; new.repaid_by_name := null; end if;
   new.updated_at := now();
   return new;
 end $$;
@@ -690,7 +690,10 @@ begin
       new.repaid_by_name := old.repaid_by_name;
     end if;
   end if;
-  if new.type <> 'IN' or new.funded_by <> 'EMPLOYEE' then new.repaid_at := null; new.repaid_note := null; new.repaid_by_name := null; end if;
+  if new.funded_by <> 'EMPLOYEE' then new.repaid_at := null; new.repaid_note := null; new.repaid_by_name := null; end if;
   new.updated_at := now();
   return new;
 end $$;
+
+-- Own-money wallet expenses (OUT + EMPLOYEE) are also owed back and can be marked repaid.
+-- (fin_wallet_stamp: final check is now `if new.funded_by <> 'EMPLOYEE'` instead of type/funded_by.)

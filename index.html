@@ -218,6 +218,11 @@
       <textarea id="exp_notes" rows="2"></textarea>
     </div>
     <div class="calc-box" id="exp_calc_preview"></div>
+    <div class="field hidden" id="exp_split_field" style="margin-top:12px;">
+      <label id="exp_split_label">Who paid the remaining?</label>
+      <div class="chips" id="exp_split_chips"></div>
+      <select id="exp_split_person" style="display:none;"></select>
+    </div>
     <div class="modal-actions">
       <button class="btn" id="expenseSaveBtn" onclick="saveExpense()">Save Expense</button>
       <button class="btn secondary" onclick="closeModal('expenseModal')">Cancel</button>

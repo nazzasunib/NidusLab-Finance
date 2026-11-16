@@ -670,6 +670,7 @@ function updateExpensePreview(){
   const amount = num(document.getElementById('exp_amount').value);
   const p = getPaidBy();
   const box = document.getElementById('exp_calc_preview');
+  syncSplit(0, 0);
   if (amount <= 0){ box.innerHTML = '<span class="muted">Enter an amount to see how it affects the books.</span>'; return; }
   const editingId = document.getElementById('exp_editing_id').value;
   const old = editingId ? data.expenses.find(x => x.id === editingId) : null;
@@ -679,7 +680,8 @@ function updateExpensePreview(){
     const adj = old && old.paidBy === 'COMPANY' ? num(old.amount) : 0;
     const after = round2(cashNow + adj - amount);
     html += `<div>Company Paid: <b>+${formatBDT(amount)}</b></div><div>Cash in Hand: ${formatBDT(cashNow)} → <b class="${after<0?'red':''}">${formatBDT(after)}</b></div>`;
-    if (after < 0) html += `<div class="warn-box">Cash in Hand ${formatBDT(cashNow + adj)}. Short by <b>${formatBDT(-after)}</b> — cannot save. Add the ${formatBDT(-after)} as a separate "Employee (Own Pocket)" expense, or add money first.</div>`;
+    if (after < 0 && !editingId){ const avail = Math.max(0, round2(cashNow)); html += `<div class="warn-box">Cash in Hand is only <b>${formatBDT(avail)}</b>. The company pays <b>${formatBDT(avail)}</b> and the remaining <b>${formatBDT(round2(amount - avail))}</b> is paid by the person you pick below (they get it back as a reimbursement).</div>`; syncSplit(round2(amount - avail), avail); }
+    else if (after < 0) html += `<div class="warn-box">Cash in Hand ${formatBDT(cashNow + adj)}. Short by <b>${formatBDT(-after)}</b> — cannot save. Add money first, or reduce the amount.</div>`;
   } else if (!canWrite()){
     html = `<div><b>Request to admin:</b> ${formatBDT(amount)}</div><div class="muted">After approval you get ${formatBDT(amount)} back as reimbursement.</div>`;
   } else {
@@ -745,8 +747,18 @@ function saveExpense(){
     if (extra > 0 && !checkCashOrBlock(extra)) return;
     Object.assign(e, fields, { payments });
   } else {
-    if (paidBy === 'COMPANY' && !checkCashOrBlock(amount)) return;
-    data.expenses.push({ id:uid(), createdAt:Date.now(), payments:[], status:'APPROVED', ...fields });
+    const avail = Math.max(0, round2(cashBalance()));
+    if (paidBy === 'COMPANY' && amount > avail){
+      const who = (document.getElementById('exp_split_person') || {}).value;
+      if (!who){ alert(`Cash in Hand is only ${formatBDT(avail)}. Pick who paid the remaining ${formatBDT(round2(amount - avail))}.`); return; }
+      const rest = round2(amount - avail);
+      const tag = `Split: ${formatBDT(avail)} company + ${formatBDT(rest)} paid by ${who}`;
+      const note = n => (n ? n + '\n' : '') + tag;
+      if (avail > 0) data.expenses.push({ id:uid(), createdAt:Date.now(), payments:[], status:'APPROVED', ...fields, amount:avail, notes:note(fields.notes) });
+      data.expenses.push({ id:uid(), createdAt:Date.now() + 1, payments:[], status:'APPROVED', ...fields, ...(avail > 0 ? { photoFile:null, photoPath:null, photoName:null, photoMime:null, photo:null, files:[], _filesNew:[] } : {}),
+        amount:rest, paidBy:'EMPLOYEE', employee:who, notes:note(fields.notes) });
+      toast(`Saved: ${formatBDT(avail)} from company, ${formatBDT(rest)} owed to ${who}.`);
+    } else data.expenses.push({ id:uid(), createdAt:Date.now(), payments:[], status:'APPROVED', ...fields });
   }
   saveData();
   closeModal('expenseModal');
@@ -2633,4 +2645,24 @@ function onCategoryChange(){
   const s = $('exp_cat_search'); if (!s) return;
   s.classList.toggle('hidden', !o);
   if (!o && s.value){ s.value = ''; const cur = $('exp_category').value; $('exp_category').innerHTML = categoryOptionsHtml(EXPENSE_CATEGORIES); $('exp_category').value = cur; }
+}
+
+/* ----- split: company pays what is in hand, the rest by a chosen person ----- */
+function syncSplit(rest, avail){
+  const box = $('exp_split_field'); if (!box) return;
+  const show = rest > 0 && canWrite();
+  box.classList.toggle('hidden', !show);
+  if (!show) return;
+  $('exp_split_label').innerHTML = `Who paid the remaining <b>${formatBDT(rest)}</b>? <span style="color:var(--rose,#e5484d);">*</span>`;
+  const sel = $('exp_split_person'), cur = sel.value;
+  const names = members.map(m => m.name);
+  if (!sel.options.length || sel.dataset.n !== names.join('|')){
+    sel.innerHTML = '<option value="">— choose person —</option>' + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    sel.dataset.n = names.join('|'); sel.value = names.includes(cur) ? cur : '';
+  }
+  renderSplitChips();
+}
+function renderSplitChips(){
+  const sel = $('exp_split_person'), box = $('exp_split_chips'); if (!sel || !box) return;
+  box.innerHTML = [...sel.options].filter(o => o.value).map(o => `<button type="button" class="chip-btn ${o.value === sel.value ? 'on' : ''}" onclick="document.getElementById('exp_split_person').value=${esc(JSON.stringify(o.value))};renderSplitChips()">${esc(o.value)}</button>`).join('');
 }
